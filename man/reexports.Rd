@@ -13,4 +13,3 @@ below to see their documentation.
 \describe{
   \item{htmlwidgets}{\code{\link[htmlwidgets]{JS}}}
 }}
-

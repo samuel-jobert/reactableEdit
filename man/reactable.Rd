@@ -238,7 +238,12 @@ Server-side data processing is currently \strong{experimental}.}
 in Shiny.}
 
 \item{rowId}{Name of a column containing unique, nonmissing character or safe integer row keys.
-Required for editable columns. This column cannot itself be editable.
+For editable columns, defaults to a hidden column containing the data's row names.
+Use \code{"rownames"} to generate that column explicitly or \code{"new"} to generate keys from
+\code{1} to \code{nrow(data)}. These modes apply only when no data column has that name.
+Generated keys are recreated when the table is rebuilt; use a stable data column
+when row identity must survive data replacement or when adding rows.
+The key column cannot itself be editable.
 Editing requires Shiny and is not supported with \code{server = TRUE} or \code{.subRows} data.}
 
 \item{inputIdPrefix}{Prefix for editable input IDs. Defaults to the Shiny output ID.

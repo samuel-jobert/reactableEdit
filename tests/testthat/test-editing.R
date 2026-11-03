@@ -105,7 +105,25 @@ test_that("editing status options serialize and inherit through column defaults"
 test_that("editing requires stable keys and supported data processing", {
   data <- data.frame(id = c("a", "b"), value = 1:2)
   columns <- list(value = colDef(editable = TRUE, editor = "number"))
-  expect_error(reactable(data, columns = columns), "require a `rowId`")
+  table <- reactable(data, columns = columns)
+  expect_equal(getAttrib(table, "rowId"), ".rowId")
+  expect_equal(jsonlite::fromJSON(as.character(getAttrib(table, "data")))$.rowId, c("1", "2"))
+  expect_false(getAttrib(table, "columns")[[3]]$show)
+  rownames(data) <- c("first", "second")
+  for (mode in c("rownames", "new")) {
+    table <- reactable(data, rowId = mode, columns = columns)
+    key <- getAttrib(table, "rowId")
+    values <- jsonlite::fromJSON(as.character(getAttrib(table, "data")))[[key]]
+    expect_equal(values, if (mode == "new") 1:2 else c("first", "second"))
+    expect_false(tail(getAttrib(table, "columns"), 1)[[1]]$show)
+  }
+  table <- reactable(data.frame(new = c("a", "b"), value = 1:2), rowId = "new", columns = columns)
+  expect_equal(getAttrib(table, "rowId"), "new")
+  table <- reactable(data.frame(.rowId = c("a", "b"), value = 1:2, check.names = FALSE),
+                     columns = columns)
+  expect_equal(getAttrib(table, "rowId"), ".rowId.1")
+  table <- reactable(data.frame(value = 1:2), rowId = "new")
+  expect_equal(jsonlite::fromJSON(as.character(getAttrib(table, "data")))[[getAttrib(table, "rowId")]], 1:2)
   expect_error(reactable(data, rowId = "missing", columns = columns), "`rowId`")
   expect_error(reactable(transform(data, id = c("a", "a")), rowId = "id", columns = columns), "unique")
   expect_error(reactable(transform(data, id = c("a", NA)), rowId = "id", columns = columns), "nonmissing")

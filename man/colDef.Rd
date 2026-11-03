@@ -191,7 +191,8 @@ character string.
 
 Note that if \code{footerStyle} is a named list, property names should be camelCased.}
 
-\item{editable}{Show a native Shiny input in this column? Requires \code{rowId} in \code{\link[=reactable]{reactable()}}.
+\item{editable}{Show a native Shiny input in this column? If \code{rowId} is omitted from \code{\link[=reactable]{reactable()}},
+row names are used as hidden row keys. Use an explicit stable \code{rowId} for data that changes.
 Cannot be combined with \code{cell}. Only leaf data cells are editable.}
 
 \item{editor}{Input type: \code{"text"}, \code{"number"}, \code{"select"}, \code{"checkbox"}, \code{"date"}, or \code{"textarea"}.}

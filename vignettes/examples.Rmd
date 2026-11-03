@@ -29,6 +29,8 @@ the original [reactable project](https://github.com/glin/reactable) remains cred
 
 For detailed editing documentation, input IDs, native Shiny observers and updaters, server validation, disabled inputs,
 row actions, tooltips, and a complete application, see the [editing guide](edition.html).
+Editable columns use row names as hidden keys when `rowId` is omitted; `rowId = "new"` instead generates
+integer keys from 1 to the number of rows. For changing data, provide a stable key column.
 
 To create a data table, use `reactable()` on a data frame or matrix.
 The table will be sortable and paginated by default:
@@ -927,7 +929,9 @@ browsable(
 New in v0.4.5.9000
 :::
 
-Use `rowId` to identify records and `colDef(editable = TRUE)` to show native Shiny inputs.
+Use `colDef(editable = TRUE)` to show native Shiny inputs. By default, row names provide hidden keys;
+set `rowId = "rownames"` to select them explicitly or `rowId = "new"` to number rows from 1.
+Use a stable data column such as `rowId = "id"` when records may change or rows may be added.
 Available editors are `"text"`, `"number"`, `"select"`, `"checkbox"`, `"date"`, and `"textarea"`.
 Pass native constructor options through `editorOptions`, such as `list(choices = ...)` for a select.
 

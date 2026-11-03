@@ -148,7 +148,12 @@
 #' @param selectionId **Deprecated**. Use [getReactableState()] to get the selected rows
 #'   in Shiny.
 #' @param rowId Name of a column containing unique, nonmissing character or safe integer row keys.
-#'   Required for editable columns. This column cannot itself be editable.
+#'   For editable columns, defaults to a hidden column containing the data's row names.
+#'   Use `"rownames"` to generate that column explicitly or `"new"` to generate keys from
+#'   `1` to `nrow(data)`. These modes apply only when no data column has that name.
+#'   Generated keys are recreated when the table is rebuilt; use a stable data column
+#'   when row identity must survive data replacement or when adding rows.
+#'   The key column cannot itself be editable.
 #'   Editing requires Shiny and is not supported with `server = TRUE` or `.subRows` data.
 #' @param inputIdPrefix Prefix for editable input IDs. Defaults to the Shiny output ID.
 #'   Default IDs are `<prefix>_<rowKey>_<columnId>`, with row and column components URL-encoded.
@@ -414,6 +419,20 @@ reactable <- function(
     if (!all(names(columns) %in% columnKeys)) {
       stop("`columns` names must exist in `data`")
     }
+  }
+
+  generatedRowId <- if (is.null(rowId) &&
+                        any(vapply(columns, function(col) isTRUE(col$editable), logical(1)))) {
+    "rownames"
+  } else if (is.character(rowId) && length(rowId) == 1 && !is.na(rowId) &&
+             !rowId %in% names(data) && rowId %in% c("rownames", "new")) {
+    rowId
+  }
+  if (!is.null(generatedRowId)) {
+    rowId <- make.unique(c(names(data), ".rowId"))[[ncol(data) + 1]]
+    data[[rowId]] <- if (generatedRowId == "new") seq_len(nrow(data)) else rownames(data)
+    columnKeys <- c(columnKeys, rowId)
+    columns[[rowId]] <- colDef(show = FALSE)
   }
 
   if (!is.null(columnGroups)) {

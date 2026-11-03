@@ -89,9 +89,23 @@ output$cars <- renderReactable({
 })
 ```
 
-`rowId` refers to a **data column**, not a displayed row number. Keys must be unique and non-missing: strings or
-integers exactly representable in JavaScript, between `-(2^53 - 1)` and `2^53 - 1`.
+`rowId` normally refers to a **data column**, not a displayed row number. Keys must be unique and non-missing:
+strings or integers exactly representable in JavaScript, between `-(2^53 - 1)` and `2^53 - 1`.
 Prefer simple keys such as `"car1"` or a database ID.
+
+If editable columns have no `rowId`, the table creates a hidden key column from the data's row names.
+Set `rowId = "rownames"` to use this mode explicitly, or `rowId = "new"` to generate integer keys from
+`1` to `nrow(data)`. These names still refer to real columns when those columns exist. Generated keys are
+recreated on each table build. Use a stable data column for reactive data that may be reordered or have rows
+inserted, especially with `rowActions = list(add = TRUE)`; added rows need a key supplied by the server.
+
+```{r, eval=FALSE}
+rows <- data.frame(Price = c(12, 15), row.names = c("first", "second"))
+editable <- list(Price = colDef(editable = TRUE, editor = "number"))
+reactable(rows, columns = editable)                       # hidden keys: "first", "second"
+reactable(rows, rowId = "rownames", columns = editable)  # same keys explicitly
+reactable(rows, rowId = "new", columns = editable)       # hidden keys: 1, 2
+```
 
 The key column can be hidden, but it cannot be editable. Do not regenerate its values after sorting, deleting, or
 paginating. A row edit must always be looked up by its key.

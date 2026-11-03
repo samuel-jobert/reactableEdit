@@ -34,7 +34,8 @@
 #' @param cell Custom cell renderer. An R function that takes the cell value,
 #'   row index, and column name as arguments, or a [JS()] function that takes a
 #'   cell info object and table state object as arguments.
-#' @param editable Show a native Shiny input in this column? Requires `rowId` in [reactable()].
+#' @param editable Show a native Shiny input in this column? If `rowId` is omitted from [reactable()],
+#'   row names are used as hidden row keys. Use an explicit stable `rowId` for data that changes.
 #'   Cannot be combined with `cell`. Only leaf data cells are editable.
 #' @param editor Input type: `"text"`, `"number"`, `"select"`, `"checkbox"`, `"date"`, or `"textarea"`.
 #' @param editorOptions Named list of arguments for the corresponding Shiny input constructor.
