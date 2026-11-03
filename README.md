@@ -1,5 +1,7 @@
 # reactableEdit
 
+<img src="man/figures/reactable-edit.svg" alt="reactable edit badge with an editing cursor in edit" width="180" />
+
 **reactableEdit** is an independent fork of [reactable](https://github.com/glin/reactable), originally developed by
 Greg Lin. Maintained by Samuel JOBERT, it adds native Shiny cell editing, server validation, configurable input
 states, row addition and removal, and rich tooltips. It is not an official release of the original project.
