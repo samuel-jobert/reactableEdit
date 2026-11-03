@@ -1,6 +1,7 @@
 import React from 'react'
 import { validateEditingData } from './CellInput'
 import { normalizeColumnData } from './columns'
+import { isBrowser } from './utils'
 
 let actionSequence = 0
 
@@ -31,7 +32,7 @@ export function useRowActions({
   React.useEffect(() => setSettings(options || {}), [options])
 
   const outputId = () => rootElement.current.parentElement.getAttribute('data-reactable-output')
-  const available = Boolean(window.Shiny?.setInputValue)
+  const available = Boolean(isBrowser() && window.Shiny?.setInputValue)
   const publish = action => {
     const id = outputId()
     if (!id || !available) throw new Error(language.editUnavailable)

@@ -10,7 +10,7 @@ output:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-library(reactable)
+library(reactableEdit)
 ```
 
 More examples of [custom filtering](./custom-filtering.html). Note that the

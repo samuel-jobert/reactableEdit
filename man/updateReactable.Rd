@@ -69,7 +69,7 @@ None
 if (interactive()) {
 
 library(shiny)
-library(reactable)
+library(reactableEdit)
 
 data <- MASS::Cars93[, 1:7]
 

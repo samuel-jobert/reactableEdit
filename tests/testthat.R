@@ -1,4 +1,4 @@
 library(testthat)
-library(reactable)
+library(reactableEdit)
 
-test_check("reactable")
+test_check("reactableEdit")

@@ -12,7 +12,7 @@ options(reactable.static = TRUE)
 ```
 
 ```{r, echo=FALSE}
-library(reactable)
+library(reactableEdit)
 
 reactable(iris)
 ```

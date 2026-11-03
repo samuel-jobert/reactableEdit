@@ -25,10 +25,7 @@ DEV_VERSION="${RELEASE_VERSION}.9000"
 
 sed -i "s/$RELEASE_VERSION/$DEV_VERSION/" DESCRIPTION
 sed -i "s/$RELEASE_VERSION/$DEV_VERSION/" inst/htmlwidgets/reactable.yaml
-sed -i "1s/^/# reactable ${DEV_VERSION} (Unreleased)\n\n/" NEWS.md
-
-VERSION_URL=$(echo "$RELEASE_VERSION" | sed 's/\./-/g')
-sed -zri "s/(# reactable ${RELEASE_VERSION}\n)/\1\n[Documentation - reactable ${RELEASE_VERSION}](https:\/\/v${VERSION_URL}--reactable-docs.netlify.app\/)\n/" NEWS.md
+sed -i "1s/^/# reactableEdit ${DEV_VERSION} (Unreleased)\n\n/" NEWS.md
 
 git commit -am "Bump version to ${DEV_VERSION}"
 

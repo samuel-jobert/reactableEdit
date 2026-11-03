@@ -1,5 +1,5 @@
 library(shiny)
-library(reactable)
+library(reactableEdit)
 
 db <- tools::CRAN_package_db()
 

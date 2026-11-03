@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r table, echo=FALSE}
-library(reactable)
+library(reactableEdit)
 library(htmltools)
 
 pkgs <- read.csv("cran_pkgs.csv", stringsAsFactors = FALSE)

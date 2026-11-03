@@ -19,7 +19,7 @@ options(reactable.static = TRUE)
 ```
 
 ```{r table, echo=FALSE}
-library(reactable)
+library(reactableEdit)
 library(htmltools)
 
 data <- read.csv("twitter_followers.csv", stringsAsFactors = FALSE)

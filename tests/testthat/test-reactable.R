@@ -1385,14 +1385,16 @@ test_that("reactable_html", {
 })
 
 test_that("reactable.yaml widget dependencies are included with correct version. If this test fails, update inst/htmlwidgets/reactable.yaml", {
-  deps <- htmlwidgets::getDependency("reactable")
+  deps <- htmlwidgets::getDependency("reactable", package = "reactableEdit")
   reactableDep <- Find(function(x) x$name == "reactable", deps)
   expect_true(!is.null(reactableDep))
   # Keep widget dependency version in sync with package version
-  expect_equal(package_version(reactableDep$version), packageVersion("reactable"))
+  expect_equal(package_version(reactableDep$version), packageVersion("reactableEdit"))
   # Ensure reactable.css is included and named correctly, as it's also used as
   # the insertion point for theme style injection
   expect_equal(reactableDep$stylesheet, "reactable.css")
+  expect_equal(reactableDep$package, "reactableEdit")
+  expect_identical(attr(reactable(iris), "package"), "reactableEdit")
 })
 
 # Skip tests that rely on V8 if V8 was built against a version of libv8 without

@@ -422,3 +422,34 @@ Dernier essai Shiny : aide de Model en lecture seule, en-tete en gras, update de
 prix negatif refuse tout en conservant la description d'erreur et celle du tooltip.
 Apres remplacement complet des donnees, l'aide par ID est toujours presente.
 Effacer les regles restaure l'aide par defaut de la colonne. Serveurs temporaires arretes ; aucun commit effectue.
+
+## 13. Licence et nom du fork
+
+Le package d'origine est sous licence MIT. Un fork modifie peut etre redistribue en conservant
+les droits d'auteur, la licence et les mentions des bibliotheques tierces.
+Le nom CRAN ne peut contenir ni tiret ni underscore ; `reactableEdit` a ete retenu.
+Les recherches CRAN et GitHub n'ont pas trouve ce nom, sans constituer une reservation.
+
+Demande utilisateur :
+
+> Peux-tu modifier ce package pour que ce nom soit pris en compte ? En y ajoutant les mentions dont tu parlais plus haut ?
+> Je renommerai le repertoire plus tard
+
+Decision et justification technique :
+
+- Le package et le namespace R deviennent `reactableEdit`.
+- Les fonctions, classes du widget, bindings Shiny, options et API JavaScript gardent leurs noms
+  pour preserver la compatibilite du code existant.
+- Les chemins de ressources et les tests utilisent explicitement le nouveau package, sans dependance
+  envers une installation du package original.
+- Le repertoire peut etre renomme independamment du package.
+- Les mentions distinguent le fork du projet original et conservent les auteurs et droits anterieurs.
+- Les instructions d'installation ne pretendent pas que le fork est deja publie sur CRAN ou GitHub.
+- Le service d'aide IA du site upstream est retire du template du fork : il ne documente pas ses extensions.
+
+Verification : archive source construite et installee sous le nouveau nom, sans charger le namespace original.
+Ressources, sortie Shiny, export HTML et rendu statique V8 verifies.
+Le changement de chemin de ressources a revele deux acces a window incompatibles avec le rendu statique ;
+ils sont maintenant proteges par le helper isBrowser() existant et un test SSR.
+923 assertions R et 81 tests JS reussis ; bundles reconstruits, lint et formatage passes.
+Le repertoire n'a pas ete renomme ; aucun commit ni publication distante effectue.

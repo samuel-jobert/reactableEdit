@@ -10,13 +10,13 @@ output:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-library(reactable)
+library(reactableEdit)
 ```
 
 ### Custom sort icons using CSS pseudo-elements
 
 ```{r custom_sort, eval=FALSE}
-library(reactable)
+library(reactableEdit)
 library(htmltools)
 
 reactable(

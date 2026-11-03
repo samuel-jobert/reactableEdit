@@ -1,5 +1,5 @@
 library(shiny)
-library(reactable)
+library(reactableEdit)
 
 rows_options <- c(100000, 1000000)
 names(rows_options) <- format(rows_options, scientific = FALSE)

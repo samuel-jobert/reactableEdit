@@ -2,12 +2,26 @@
  * @jest-environment node
  */
 
+import React from 'react'
+import { renderToString } from 'react-dom/server'
+import { Reactable } from '../Reactable'
 import { renderToHTML, setInitialProps, renderToData, resetTestRenderer } from '../server'
 
 // These tests run in Node and are intentionally minimal. See test-reactable.R for
 // more comprehensive tests that run in true V8 environments (different from Node).
 
 describe('renderToHTML', () => {
+  it('renders widgets with an element ID without browser globals', () => {
+    const html = renderToString(
+      <Reactable
+        data={{ Model: ['Integra'] }}
+        columns={[{ id: 'Model', name: 'Model', type: 'character' }]}
+        elementId="static-table"
+      />
+    )
+    expect(html).toContain('Integra')
+  })
+
   it('renders tables to HTML', () => {
     const inputString =
       '{"props":{"data":{"Manufacturer":["Acura","Acura","Audi"],"Model":["Integra","Legend","90"],"Type":["Small","Midsize","Compact"]},"columns":[{"id":"Manufacturer","name":"Manufacturer","type":"factor"},{"id":"Model","name":"Model","type":"factor"},{"id":"Type","name":"Type","type":"factor"}],"dataKey":"b540d0d929ae2ade6248d0cbb7f477fc"},"evals":[]}'

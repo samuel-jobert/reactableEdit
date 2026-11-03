@@ -1,6 +1,7 @@
 import React from 'react'
 import PropTypes from 'prop-types'
 import { renderTemplate } from './language'
+import { isBrowser } from './utils'
 
 let editSequence = 0
 const cellKey = (rowId, columnId) => JSON.stringify([String(rowId), columnId])
@@ -241,7 +242,7 @@ export function useCellEditing({
 
   return {
     enabled,
-    available: Boolean(outputId && window.Shiny?.bindAll && window.jQuery),
+    available: Boolean(isBrowser() && outputId && window.Shiny?.bindAll && window.jQuery),
     version,
     language,
     getInputId: (key, columnId) => ids.get(cellKey(key, columnId)),

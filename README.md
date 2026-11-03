@@ -1,14 +1,21 @@
-# reactable
+# reactableEdit
 
-[![CRAN Status](https://www.r-pkg.org/badges/version/reactable)](https://cran.r-project.org/package=reactable)
-[![Build Status](https://github.com/glin/reactable/actions/workflows/build.yaml/badge.svg?branch=main)](https://github.com/glin/reactable/actions/workflows/build.yaml)
-[![codecov](https://codecov.io/gh/glin/reactable/branch/master/graph/badge.svg)](https://app.codecov.io/gh/glin/reactable)
+**reactableEdit** is an independent fork of [reactable](https://github.com/glin/reactable), originally developed by
+Greg Lin. Maintained by Samuel JOBERT, it adds native Shiny cell editing, server validation, configurable input
+states, row addition and removal, and rich tooltips. It is not an official release of the original project.
+
+Development and issue reports: <https://github.com/samuel-jobert/reactableEdit>.
+This development fork is not currently published on CRAN.
 
 Interactive data tables for R, based on the
 [React Table](https://github.com/tanstack/table/tree/v7) library and made with
 [reactR](https://github.com/react-R/reactR).
 
 ## Features
+- Native Shiny cell inputs with explicit server acceptance or rejection
+- Configurable editing indicators and disabled inputs by row, column, or cell
+- Browser row addition and removal with Shiny callbacks
+- Rich tooltips for cells, inputs, and headers
 - Sorting, filtering, pagination
 - Grouping and aggregation
 - Built-in column formatting
@@ -18,7 +25,11 @@ Interactive data tables for R, based on the
 - Virtual scrolling for large tables
 - Works seamlessly within R Markdown documents and Shiny apps
 
-## Demos
+## Upstream demos
+
+The following links demonstrate the original package's shared features, not this fork's extensions.
+For editing and tooltip examples, see [the local guide](@travail/README.md) and
+[the Shiny demo source](design/cell-editing/cell-editing-test.Rmd).
 - [Twitter Followers](https://glin.github.io/reactable/articles/twitter-followers/twitter-followers.html)
 - [Women's World Cup Predictions](https://glin.github.io/reactable/articles/womens-world-cup/womens-world-cup.html)
 - [NBA Box Score](https://glin.github.io/reactable/articles/nba-box-score/nba-box-score.html)
@@ -31,21 +42,27 @@ Interactive data tables for R, based on the
 - [Shiny Demo](https://glin.github.io/reactable/articles/shiny-demo.html)
 
 ## Installation
-You can install reactable from CRAN with:
+Install from a local checkout (the directory name does not need to match the package name):
 ```r
-install.packages("reactable")
+# Run from the checkout directory
+install.packages(".", repos = NULL, type = "source")
 ```
 
-Or install the development version from GitHub with:
+Once the fork has been published to GitHub, install it with:
 ```r
 # install.packages("devtools")
-devtools::install_github("glin/reactable")
+devtools::install_github("samuel-jobert/reactableEdit")
 ```
+
+The package is loaded with `library(reactableEdit)`. Existing function names (`reactable()`, `colDef()`,
+`reactableOutput()`, etc.), the `Reactable` JavaScript API, widget classes, and `reactable.*` options are unchanged.
+Both R packages can be installed side by side, but avoid loading them together or mixing their widgets in the
+same HTML document: they share function names, widget bindings, and JavaScript globals.
 
 ## Usage
 To create a table, use `reactable()` on a data frame or matrix:
 ```r
-library(reactable)
+library(reactableEdit)
 
 reactable(iris)
 ```
@@ -56,7 +73,7 @@ reactable(iris)
 You can embed tables in **R Markdown** or **Quarto** documents:
 ````
 ```{r}
-library(reactable)
+library(reactableEdit)
 
 reactable(iris)
 ```
@@ -65,7 +82,7 @@ reactable(iris)
 Or use them in **Shiny** applications:
 ```r
 library(shiny)
-library(reactable)
+library(reactableEdit)
 
 ui <- fluidPage(
   reactableOutput("table")
@@ -80,9 +97,9 @@ server <- function(input, output) {
 shinyApp(ui, server)
 ```
 
-To learn more about using reactable, check out the examples below.
+To learn more about the shared API, check out the upstream examples below.
 
-## Examples
+## Upstream examples
 - [Basic Usage](https://glin.github.io/reactable/articles/examples.html#basic-usage)
 - [Sorting](https://glin.github.io/reactable/articles/examples.html#sorting)
 - [Filtering](https://glin.github.io/reactable/articles/examples.html#filtering)
@@ -114,4 +131,6 @@ To learn more about using reactable, check out the examples below.
 | Edge | last 2 versions | last 2 versions | last 2 versions | last 2 versions |
 
 ## License
-MIT
+
+MIT, as in the original project. The original [LICENSE](LICENSE), authors, and bundled library notices are retained.
+See [LICENSE.note](LICENSE.note) for the full MIT terms, fork provenance, and copyright for the modifications.

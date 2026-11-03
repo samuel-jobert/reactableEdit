@@ -8,7 +8,7 @@ output:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-library(reactable)
+library(reactableEdit)
 library(htmltools)
 ```
 

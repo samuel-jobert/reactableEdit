@@ -1,3 +1,3 @@
-# Build search index for GitHub Pages (served at /reactable).
+# Build search index for GitHub Pages (served at /reactableEdit).
 # build-docs.R must be run first.
-pkgdown::build_search(override = list(url = "/reactable"))
+pkgdown::build_search(override = list(url = "/reactableEdit"))

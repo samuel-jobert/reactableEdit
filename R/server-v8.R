@@ -19,7 +19,7 @@ Do you need to run `install.packages("V8")`?', call. = FALSE)
       # which can be significant for large datasets.
       start <- Sys.time()
       ctx <- V8::v8()
-      ctx$source(system.file("htmlwidgets/reactable.server.js", package = "reactable", mustWork = TRUE))
+      ctx$source(system.file("htmlwidgets/reactable.server.js", package = "reactableEdit", mustWork = TRUE))
       if (isTRUE(getOption("reactable.debug"))) {
         ctx$call("Reactable.enableDebugLogging")
       }

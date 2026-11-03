@@ -10,16 +10,27 @@ output:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-library(reactable)
+library(reactableEdit)
 
 options(reactable.static = TRUE)
 ```
 
 ## Basic Usage
+
+::: {.callout}
+New in v0.4.5.9000
+:::
+
+This independent fork is named **reactableEdit**. Load it with `library(reactableEdit)` instead of
+`library(reactable)`. Function names such as `reactable()` and `colDef()`, the `Reactable` JavaScript API, and
+`reactable.*` options retain their original names. Do not load both packages or mix their widgets in the same
+HTML document. See the [fork repository](https://github.com/samuel-jobert/reactableEdit) for the extensions;
+the original [reactable project](https://github.com/glin/reactable) remains credited under its MIT license.
+
 To create a data table, use `reactable()` on a data frame or matrix.
 The table will be sortable and paginated by default:
 ```{r}
-library(reactable)
+library(reactableEdit)
 
 reactable(iris)
 ```
@@ -919,7 +930,7 @@ Pass native constructor options through `editorOptions`, such as `list(choices =
 
 ```{r, eval=FALSE}
 library(shiny)
-library(reactable)
+library(reactableEdit)
 
 cars <- data.frame(id = paste0("car", seq_len(nrow(mtcars))), Price = mtcars$mpg)
 tbl <- reactable(cars, rowId = "id", columns = list(
@@ -2279,7 +2290,7 @@ To use reactable in Shiny apps, use `renderReactable()` and `reactableOutput()`:
 
 ```{r, eval=FALSE}
 library(shiny)
-library(reactable)
+library(reactableEdit)
 
 ui <- fluidPage(
   titlePanel("reactable example"),
@@ -2306,7 +2317,7 @@ The selected rows are given as a vector of row indices
 
 ```{r, eval=FALSE}
 library(shiny)
-library(reactable)
+library(reactableEdit)
 
 ui <- fluidPage(
   titlePanel("row selection example"),
@@ -2402,7 +2413,7 @@ You can update the selected rows, expanded rows, current page, or data using
 
 ```{r, eval=FALSE}
 library(shiny)
-library(reactable)
+library(reactableEdit)
 
 data <- MASS::Cars93[, 1:7]
 
@@ -2484,7 +2495,7 @@ To only watch for changes on a specific value, you can use the optional `name` a
 
 ```{r, eval=FALSE}
 library(shiny)
-library(reactable)
+library(reactableEdit)
 library(htmltools)
 
 ui <- fluidPage(
@@ -2711,7 +2722,7 @@ automatically applies any client-side filtering that has been done to the table.
 
 ```{r, eval=FALSE}
 library(shiny)
-library(reactable)
+library(reactableEdit)
 library(htmltools)
 
 csvDownloadButton <- function(id, filename = "data.csv", label = "Download as CSV") {

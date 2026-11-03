@@ -45,7 +45,7 @@ for additional examples of using reactable in Shiny.
 if (interactive()) {
 
 library(shiny)
-library(reactable)
+library(reactableEdit)
 
 ui <- fluidPage(
  titlePanel("reactable example"),

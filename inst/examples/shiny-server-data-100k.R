@@ -1,5 +1,5 @@
 library(shiny)
-library(reactable)
+library(reactableEdit)
 
 rows <- 100000
 dates <- seq.Date(as.Date("2018-01-01"), as.Date("2018-12-01"), "day")

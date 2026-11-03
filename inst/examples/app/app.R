@@ -1,5 +1,5 @@
 library(shiny)
-library(reactable)
+library(reactableEdit)
 
 prismCodeBlock <- function(code, language = "r") {
   # Generate a pre-code tag without indentation

@@ -37,7 +37,7 @@ Reactable.setFilter('tbl', 'island', islands)
 ```
 
 ```{r}
-library(reactable)
+library(reactableEdit)
 
 data <- read.csv("palmer-penguins.csv")
 
@@ -80,7 +80,7 @@ filteredData = Generators.observe(change => {
 ```
 
 ```{r}
-library(reactable)
+library(reactableEdit)
 library(htmltools)
 
 data <- read.csv("palmer-penguins.csv")

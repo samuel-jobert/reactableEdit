@@ -2,12 +2,12 @@ template:
   bootstrap: 5
 
 home:
-  title: Interactive data tables for R
+  title: Interactive and editable data tables for R
 
 navbar:
   structure:
     left: [reference, examples, demos, articles, tutorials]
-    right: [search, ai, news, github]
+    right: [search, news, github]
   components:
     home: ~
     articles:
@@ -59,11 +59,6 @@ navbar:
     news:
       text: News
       href: news/index.html
-    ai:
-      text: Ask AI ✨
-      href: 'javascript:void(0)'
-      class: open-kapa-widget
-
 reference:
 - title: Create tables
   contents:

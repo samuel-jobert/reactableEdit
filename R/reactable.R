@@ -1,11 +1,23 @@
 #' @details
-#' See the [online documentation](https://glin.github.io/reactable/) for
-#' examples and an extensive usage guide.
+#' reactableEdit is an independent fork of [reactable](https://github.com/glin/reactable),
+#' originally developed by Greg Lin. It adds native Shiny cell editing with server
+#' validation, configurable input states, row actions, and rich tooltips.
+#' It is not an official release of the original project.
+#'
+#' See the [fork repository](https://github.com/samuel-jobert/reactableEdit) for
+#' development and issue reports. The [upstream documentation](https://glin.github.io/reactable/)
+#' describes the shared API, but not the extensions in this fork.
+#'
+#' Load the package with `library(reactableEdit)`. Function names such as
+#' `reactable()` and `reactableOutput()`, the `Reactable` JavaScript API, widget
+#' classes, and `reactable.*` options retain their original names for compatibility.
+#' The two packages can be installed alongside each other, but should not be
+#' loaded together or have their widgets mixed in the same HTML document.
 #' @keywords internal
 #' @import htmlwidgets
 #' @import htmltools
-#' @name reactable-package
-#' @aliases reactable-package
+#' @name reactableEdit-package
+#' @aliases reactableEdit-package
 "_PACKAGE"
 
 #' Create an interactive data table
@@ -923,7 +935,7 @@ reactable <- function(
       # Don't limit width when rendered inside an R Notebook
       knitr.figure = FALSE
     ),
-    package = "reactable",
+    package = "reactableEdit",
     dependencies = dependencies,
     elementId = elementId,
     preRenderHook = preRenderHook
@@ -971,7 +983,7 @@ columnSortDefs <- function(defaultSorted) {
 #' if (interactive()) {
 #'
 #' library(shiny)
-#' library(reactable)
+#' library(reactableEdit)
 #'
 #' ui <- fluidPage(
 #'  titlePanel("reactable example"),
@@ -990,7 +1002,7 @@ columnSortDefs <- function(defaultSorted) {
 #' @export
 reactableOutput <- function(outputId, width = "auto", height = "auto", inline = FALSE) {
   output <- htmlwidgets::shinyWidgetOutput(outputId, "reactable", width, height,
-                                           inline = inline, package = "reactable")
+                                           inline = inline, package = "reactableEdit")
   # Add attribute to Shiny output containers to differentiate them from static widgets
   addOutputId <- function(x) {
     if (isTagList(x)) {
@@ -1051,7 +1063,7 @@ Do you need to run `install.packages("V8")`?', call. = FALSE)
 
   tryCatch({
     ctx <- V8::v8()
-    ctx$source(system.file("htmlwidgets/reactable.server.js", package = "reactable", mustWork = TRUE))
+    ctx$source(system.file("htmlwidgets/reactable.server.js", package = "reactableEdit", mustWork = TRUE))
     output <- ctx$call("Reactable.renderToHTML", input_json)
   }, error = function(e) {
     warning("Failed to render table to static HTML:\n", conditionMessage(e), call. = FALSE)
@@ -1079,7 +1091,7 @@ Do you need to run `install.packages("V8")`?', call. = FALSE)
     # htmlDependencies, although still inserts the head content at the top of
     # <body> instead of <head>.
     ssrCSS <- htmlDependency(
-      emotionAttr, "1", "", head = as.character(styles), package = "reactable"
+      emotionAttr, "1", "", head = as.character(styles), package = "reactableEdit"
     )
   }
 

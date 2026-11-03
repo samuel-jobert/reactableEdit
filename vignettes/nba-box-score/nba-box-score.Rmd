@@ -22,7 +22,7 @@ options(reactable.static = TRUE)
 ```
 
 ```{r box_score, echo=FALSE}
-library(reactable)
+library(reactableEdit)
 library(htmltools)
 
 player_stats <- read.csv("player_stats.csv", stringsAsFactors = FALSE)

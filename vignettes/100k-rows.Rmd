@@ -14,7 +14,7 @@ options(reactable.static = TRUE)
 This example demonstrates a paginated table with 100,000 rows. For an alternative using virtual scrolling instead of pagination, see [100k Rows (Virtualized)](100k-rows-virtual.html).
 
 ```{r}
-library(reactable)
+library(reactableEdit)
 
 rows <- 100000
 dates <- seq.Date(as.Date("2018-01-01"), as.Date("2018-12-01"), "day")

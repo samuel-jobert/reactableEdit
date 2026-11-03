@@ -41,7 +41,7 @@ If the table has not been rendered yet, \code{getReactableState()} returns \code
 if (interactive()) {
 
 library(shiny)
-library(reactable)
+library(reactableEdit)
 library(htmltools)
 
 ui <- fluidPage(

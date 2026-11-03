@@ -37,7 +37,7 @@
 #' if (interactive()) {
 #'
 #' library(shiny)
-#' library(reactable)
+#' library(reactableEdit)
 #'
 #' data <- MASS::Cars93[, 1:7]
 #'
@@ -237,7 +237,7 @@ updateReactable <- function(outputId, data = NULL, sortBy = NULL, page = NULL,
 #' if (interactive()) {
 #'
 #' library(shiny)
-#' library(reactable)
+#' library(reactableEdit)
 #' library(htmltools)
 #'
 #' ui <- fluidPage(
@@ -439,7 +439,7 @@ reactableServerInit.default <- function(...) {
 # Default reactableServerData method
 reactableServerData.default <- function(...) {
   stop(
-    "reactable server backends must have a `reactableServerData` S3 method defined.\n\nFor more details, see `?reactable::reactableServerData`",
+    "reactable server backends must have a `reactableServerData` S3 method defined.\n\nFor more details, see `?reactableEdit::reactableServerData`",
     call. = FALSE
   )
 }

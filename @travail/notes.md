@@ -310,3 +310,28 @@ Verification finale du demo avec Model : cellule ordinaire, en-tete HTML et upda
 Prix negatif refuse avec le tooltip ouvert : message d'erreur et aide restent tous deux dans aria-describedby.
 Un remplacement complet des donnees conserve l'override par ID ; effacer les regles restaure l'aide de colDef.
 Les serveurs temporaires sur 5877 ont ete arretes. Aucun commit effectue.
+
+## Renommage en reactableEdit
+
+Le package, son namespace, ses imports d'exemples/tests et le projet RStudio utilisent maintenant `reactableEdit`.
+Le repertoire reste inchange. Les fonctions R, options `reactable.*`, classes de widget, canaux Shiny
+et l'API JavaScript gardent leurs noms pour compatibilite.
+Les chemins de ressources ciblent explicitement `package = "reactableEdit"` ; le package original n'est pas requis.
+Ne pas charger les deux packages ni melanger leurs widgets dans un meme document.
+
+Les metadonnees distinguent le fork du projet original, conservent les auteurs precedents et ajoutent
+le mainteneur du fork. LICENSE est inchange ; LICENSE.note contient la provenance, les droits des modifications
+et les termes MIT complets. Les liens de support ciblent le depot du fork.
+Le template pkgdown ne charge plus le service IA reserve a la documentation upstream.
+
+Le renommage a revele que le rendu statique utilisait auparavant les ressources du package original installe.
+Les hooks d'edition et d'actions de lignes accedaient a window sans navigateur ; ils utilisent maintenant
+le helper isBrowser() existant. Un test SSR sans navigateur couvre un widget avec elementId.
+
+Validation finale : 923 assertions R reussies (y compris les backends et le rendu statique), aucun echec ;
+81 tests JS et neuf snapshots reussis ; ESLint, Prettier et git diff --check passes.
+Bundles client/serveur reconstruits, avec les avertissements de taille webpack habituels.
+Archive source construite puis installee dans une bibliotheque isolee de session :
+chargement sans namespace upstream, ressources, sortie Shiny, export HTML et rendu statique V8 verifies.
+Les dependances de test manquantes ont ete installees uniquement dans cette bibliotheque de session.
+Aucun commit, publication ou creation de depot distant effectue.

@@ -1,4 +1,6 @@
 {
+  "name": "reactable-edit",
+  "private": true,
   "scripts": {
     "build": "webpack --mode production",
     "dev": "webpack --mode development",

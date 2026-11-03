@@ -11,4 +11,4 @@ if [[ $RELEASE_VERSION == "" ]]; then
     exit 1
 fi
 
-./node_modules/.bin/prettier NEWS.md --print-width=9999 --prose-wrap always | sed -zr -e "s/.*# reactable ${RELEASE_VERSION}\n\n//" -e "s/\n\n# reactable.+//"
+./node_modules/.bin/prettier NEWS.md --print-width=9999 --prose-wrap always | sed -zr -e "s/.*# reactableEdit ${RELEASE_VERSION}\n\n//" -e "s/\n\n# reactable(Edit)?.+//"

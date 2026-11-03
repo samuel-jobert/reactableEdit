@@ -1,4 +1,13 @@
-# Extension reactable : edition de cellules
+# reactableEdit : edition de cellules
+
+Le package R s'appelle maintenant `reactableEdit` : utiliser `library(reactableEdit)`.
+Le repertoire du projet peut garder son nom actuel. Les fonctions `reactable()`, `colDef()`,
+`reactableOutput()`, l'API JavaScript `Reactable` et les options `reactable.*` conservent leurs noms.
+Ne pas charger les deux packages ni melanger leurs widgets dans un meme document HTML.
+
+Fork independant de [reactable](https://github.com/glin/reactable), cree par Greg Lin.
+Les credits et la licence MIT d'origine sont conserves ; voir [LICENSE.note](../LICENSE.note).
+Depot du fork : <https://github.com/samuel-jobert/reactableEdit>.
 
 ## Objectif
 
