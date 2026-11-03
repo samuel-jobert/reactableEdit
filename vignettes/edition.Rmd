@@ -107,7 +107,7 @@ the table definition; its new parameters are `rowId`, `inputIdPrefix`, `disabled
 | `editor` | `"text"` | Selects one of the six editors |
 | `editorOptions` | `NULL` | Options for the corresponding Shiny constructor |
 | `inputId` | `NULL` | A specific ID or a function of the row key and column name |
-| `editValidation` | `TRUE` | Waits for server acceptance or rejection |
+| `editValidation` | `FALSE` | Waits for server acceptance or rejection |
 | `editStatus` | `"icon"` | `"icon"`, `"text"`, or `"none"` indicator |
 | `editStatusDuration` | `2000` | Success duration in milliseconds; `0` keeps it until the next edit |
 | `inputDisabled` | `FALSE` | Disables the column's inputs by default |

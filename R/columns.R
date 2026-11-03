@@ -183,7 +183,7 @@ colDef <- function(
   editor = "text",
   editorOptions = NULL,
   inputId = NULL,
-  editValidation = TRUE,
+  editValidation = FALSE,
   editStatus = "icon",
   editStatusDuration = 2000,
   inputDisabled = FALSE,
