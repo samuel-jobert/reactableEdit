@@ -15,6 +15,8 @@ import { hydrate } from 'reactR'
 
 import Pagination from './Pagination'
 import WidgetContainer from './WidgetContainer'
+import CellInput, { editorLabel, useCellEditing, validateEditingData } from './CellInput'
+import { useRowActions, partitionAddedRows, restoreAddedRows } from './RowActions'
 import useFlexLayout from './useFlexLayout'
 import useStickyColumns from './useStickyColumns'
 import useGroupBy from './useGroupBy'
@@ -34,6 +36,7 @@ import {
   RawHTML
 } from './columns'
 import { defaultLanguage, renderTemplate } from './language'
+import TooltipTarget, { useTooltips } from './Tooltip'
 import { createTheme, css } from './theme'
 import {
   classNames,
@@ -931,6 +934,12 @@ function Table({
   defaultSelected,
   selectionId,
   onClick,
+  rowId,
+  inputIdPrefix,
+  inputNamespace,
+  disabledInputs,
+  rowActions,
+  tooltips,
   outlined,
   bordered,
   borderless,
@@ -969,6 +978,87 @@ function Table({
   const dataColumns = React.useMemo(() => {
     return columns.reduce((cols, col) => cols.concat(getLeafColumns(col)), [])
   }, [columns])
+
+  const rootElement = React.useRef(null)
+  const [addedRowKeys, setAddedRowKeys] = React.useState(() => new Set())
+  const [addedInputIds, setAddedInputIds] = React.useState({})
+  const rowActionsEnabled = rowActions != null
+  const tooltipControls = useTooltips(tooltips, rowId)
+  const getTooltipControls = useGetLatest(tooltipControls)
+  const [rowSourceData, setRowSourceData] = React.useState(originalData)
+  const rowSourceIndexes = React.useMemo(
+    () =>
+      rowActionsEnabled
+        ? new Map(rowSourceData.map((row, index) => [String(row[rowId]), index]))
+        : null,
+    [rowActionsEnabled, rowSourceData, rowId]
+  )
+  const preserveEditPage = React.useRef(false)
+  const patchCell = (key, columnId, value) => {
+    preserveEditPage.current = true
+    setNewData(current =>
+      (current || originalData).map(row =>
+        String(row[rowId]) === key ? { ...row, [columnId]: value } : row
+      )
+    )
+  }
+  const editing = useCellEditing({
+    data,
+    columns: dataColumns,
+    rowId,
+    inputIdPrefix,
+    inputNamespace,
+    disabledInputs,
+    addedInputIds,
+    rowActionsEnabled,
+    rootElement,
+    language,
+    patchCell
+  })
+  const getEditing = useGetLatest(editing)
+  const rowControls = useRowActions({
+    data,
+    columns: dataColumns,
+    rowId,
+    options: rowActions,
+    rootElement,
+    language,
+    setData: setNewData,
+    preservePage: preserveEditPage,
+    editing,
+    addedKeys: addedRowKeys,
+    setAddedKeys: setAddedRowKeys,
+    inputIds: addedInputIds,
+    setInputIds: setAddedInputIds,
+    onRemove: index => {
+      tooltipControls.removeRow(String(data[index][rowId]))
+      instance.dispatch({ type: 'removeReactableRow', index })
+      setExpandedColumns(current =>
+        Object.fromEntries(
+          Object.entries(current).flatMap(([id, value]) => {
+            if (!/^\d+$/.test(id)) return [[id, value]]
+            return Number(id) === index
+              ? []
+              : [[String(Number(id) > index ? Number(id) - 1 : Number(id)), value]]
+          })
+        )
+      )
+    }
+  })
+  const getRowControls = useGetLatest(rowControls)
+  const previousOriginalData = React.useRef(originalData)
+  React.useEffect(() => {
+    if (previousOriginalData.current !== originalData && getEditing().enabled) {
+      getEditing().clear()
+      getRowControls().clear(originalData)
+      setRowSourceData(originalData)
+      setNewData(null)
+    }
+    previousOriginalData.current = originalData
+  }, [originalData, getEditing, getRowControls])
+  React.useEffect(() => {
+    preserveEditPage.current = false
+  }, [data])
 
   // Must be memoized to prevent re-filtering on every render
   const globalFilter = React.useMemo(() => {
@@ -1010,6 +1100,32 @@ function Table({
         return [selectionCol, ...columns.filter(col => !col.selectable)]
       })
     }
+  }
+
+  let rowActionColumnId = '__reactable_row_actions__'
+  while (dataColumns.some(column => column.id === rowActionColumnId)) rowActionColumnId += '_'
+  const useRowActionColumn = function useRowActionColumn(hooks) {
+    hooks.visibleColumns.push(columns =>
+      rowControls.settings.remove
+        ? [
+            ...columns,
+            {
+              id: rowActionColumnId,
+              rowAction: true,
+              Header: '',
+              width: 48,
+              minWidth: 48,
+              maxWidth: 48,
+              disableSortBy: true,
+              disableFilters: true,
+              disableGlobalFilter: true,
+              disableResizing: true,
+              headerClassName: 'rt-row-action-cell'
+            }
+          ]
+        : columns
+    )
+    hooks.visibleColumnsDeps.push(deps => [...deps, rowControls.settings.remove, rowActionColumnId])
   }
 
   const useCrosstalkColumn = function useCrosstalkColumn(hooks) {
@@ -1150,7 +1266,7 @@ function Table({
       // Maintain resized state when the data changes
       autoResetResize: false,
       // Reset current page when the data changes (e.g., sorting, filtering, searching)
-      autoResetPage: true,
+      autoResetPage: !preserveEditPage.current,
       manualPagination: useServerData,
       manualSortBy: useServerData,
       manualGlobalFilter: useServerData,
@@ -1163,22 +1279,35 @@ function Table({
       manualExpandedKey: null,
       // Prevent duplicate sub rows when sub rows are paginated server-side
       expandSubRows: !(useServerData && paginateSubRows),
-      rowCount: useServerData ? serverRowCount : null
+      rowCount: useServerData ? serverRowCount : null,
+      addedRowKeys,
+      rowKeyColumn: rowId
     },
     useServerSideRows,
     useResizeColumns,
     useFlexLayout,
     useStickyColumns,
+    partitionAddedRows,
     useFilters,
     useGlobalFilter,
     useGroupBy,
     useSortBy,
     useExpanded,
     usePagination,
+    restoreAddedRows,
     useRowSelect,
     useRowSelectColumn,
+    useRowActionColumn,
     useCrosstalkColumn
   )
+
+  const { pageCount, gotoPage } = instance
+  React.useEffect(() => {
+    const lastPage = Math.max(pageCount - 1, 0)
+    if (editing.enabled && state.pageIndex > lastPage) {
+      gotoPage(lastPage)
+    }
+  }, [editing.enabled, state.pageIndex, pageCount, gotoPage])
 
   // Server-side data
   const skipInitialFetch = React.useRef(initialServerRowCount != null)
@@ -1312,7 +1441,10 @@ function Table({
   // so converting on every render would rebuild the public state object every render too.
   // The converted arrays are shared between renders, so row data in the state is read-only.
   const rowData = React.useMemo(() => convertRowsToV6(instance.rows), [instance.rows])
-  const pageRowData = React.useMemo(() => convertRowsToV6(instance.page), [instance.page])
+  const pageRowData = React.useMemo(
+    () => convertRowsToV6([...instance.page, ...instance.addedRows]),
+    [instance.page, instance.addedRows]
+  )
   const stateInfo = React.useMemo(() => {
     return {
       ...state,
@@ -1458,9 +1590,14 @@ function Table({
             }
 
             const { key, ...resolvedHeaderProps } = column.getHeaderProps(headerProps)
+            const headerTooltip = tooltipControls.header(column)
             return (
               <ThComponent key={key} {...resolvedHeaderProps}>
-                {header}
+                {headerTooltip ? (
+                  <TooltipTarget tooltip={headerTooltip}>{header}</TooltipTarget>
+                ) : (
+                  header
+                )}
                 {resizer}
               </ThComponent>
             )
@@ -1584,7 +1721,7 @@ function Table({
       }
       props.children = content
     } else if (Array.isArray(details)) {
-      let content = details[rowInfo.index]
+      let content = details[rowInfo.sourceIndex ?? rowInfo.index]
       if (content == null) {
         // No content to render. Although this row has no expander, it may still
         // have expanded state (when defaultExpanded = true).
@@ -1614,6 +1751,13 @@ function Table({
       dataIndex = null
     ) => {
       instance.prepareRow(row)
+      if (addedRowKeys.has(String(row.original?.[rowId]))) {
+        row.cells.forEach(cell => {
+          cell.isGrouped = false
+          cell.isAggregated = false
+          cell.isPlaceholder = false
+        })
+      }
 
       // toggleRowSelected that supports single selection
       const toggleRowSelected = set => {
@@ -1628,6 +1772,10 @@ function Table({
 
       const rowInfo = {
         ...row,
+        sourceIndex:
+          rowActionsEnabled && !row.isGrouped
+            ? (rowSourceIndexes.get(String(row.original[rowId])) ?? -1)
+            : undefined,
         toggleRowSelected,
         // For v6 compatibility
         viewIndex,
@@ -1653,7 +1801,7 @@ function Table({
         if (typeof rowClassName === 'function') {
           rowCls = rowClassName(rowInfo, stateInfo)
         } else if (Array.isArray(rowClassName)) {
-          rowCls = rowClassName[rowInfo.index]
+          rowCls = rowClassName[rowInfo.sourceIndex ?? rowInfo.index]
         } else {
           rowCls = rowClassName
         }
@@ -1663,7 +1811,7 @@ function Table({
         if (typeof rowStyle === 'function') {
           rowProps.style = rowStyle(rowInfo, stateInfo)
         } else if (Array.isArray(rowStyle)) {
-          rowProps.style = rowStyle[rowInfo.index]
+          rowProps.style = rowStyle[rowInfo.sourceIndex ?? rowInfo.index]
         } else {
           rowProps.style = rowStyle
         }
@@ -1723,7 +1871,45 @@ function Table({
                 ...rowInfo
               }
               let value
-              if (cell.isGrouped) {
+              if (column.rowAction) {
+                cellProps.className = classNames(cellProps.className, 'rt-row-action-cell')
+                value = !row.isGrouped && (
+                  <button
+                    type="button"
+                    className="rt-row-remove"
+                    aria-label={renderTemplate(language.rowRemoveLabel, {
+                      rowId: row.original[rowId]
+                    })}
+                    disabled={
+                      !editing.available ||
+                      rowControls.settings.removeDisabled?.includes(String(row.original[rowId]))
+                    }
+                    onClick={event => {
+                      event.stopPropagation()
+                      const index = Array.from(
+                        rootElement.current.querySelectorAll('.rt-row-remove')
+                      ).indexOf(event.currentTarget)
+                      if (rowControls.remove(String(row.original[rowId]))) {
+                        Promise.resolve().then(() => {
+                          const buttons = Array.from(
+                            rootElement.current?.querySelectorAll('.rt-row-remove') || []
+                          )
+                          const target =
+                            buttons.slice(index).find(button => !button.disabled) ||
+                            buttons
+                              .slice(0, index)
+                              .reverse()
+                              .find(button => !button.disabled) ||
+                            rootElement.current?.querySelector('.rt-row-add:not(:disabled)')
+                          target?.focus()
+                        })
+                      }
+                    }}
+                  >
+                    {language.rowRemove}
+                  </button>
+                )
+              } else if (cell.isGrouped) {
                 value = column.Grouped ? column.Grouped(cellInfo, stateInfo) : cellInfo.value
               } else if (cell.isAggregated) {
                 value = column.Aggregated
@@ -1731,13 +1917,50 @@ function Table({
                   : cell.render('Aggregated')
               } else if (cell.isPlaceholder) {
                 value = ''
+              } else if (column.editable && !row.isGrouped) {
+                const key = String(row.original[rowId])
+                value = (
+                  <CellInput
+                    key={`${editing.version}_${JSON.stringify([key, column.id])}_${editing.available}`}
+                    html={column.editorHtml}
+                    inputId={editing.getInputId(key, column.id)}
+                    editor={column.editor || 'text'}
+                    editStatus={column.editStatus}
+                    editStatusDuration={column.editStatusDuration}
+                    value={row.original[column.id]}
+                    record={editing.getRecord(key, column.id)}
+                    available={editing.available}
+                    disabled={editing.isDisabled(key, column.id)}
+                    label={editorLabel(language, column, key)}
+                    language={language}
+                    onDraft={(value, draftText) => editing.draft(key, column.id, value, draftText)}
+                    onTooltipChange={tooltip => tooltipControls.setInput(key, column.id, tooltip)}
+                    onSubmit={(value, binding, el) =>
+                      editing.submit(
+                        key,
+                        column.id,
+                        editing.getInputId(key, column.id),
+                        value,
+                        binding,
+                        el
+                      )
+                    }
+                    onReset={() => editing.reset(key, column.id)}
+                    onError={error => editing.fail(key, column.id, error)}
+                    onServerUpdate={value => editing.serverUpdate(key, column.id, value)}
+                    onDisabledChange={disabled => editing.setDisabled(key, column.id, disabled)}
+                  />
+                )
               } else {
                 value = column.Cell ? column.Cell(cellInfo, stateInfo) : cell.render('Cell')
               }
 
               let hasDetails
               if (column.details && !row.isGrouped) {
-                if (Array.isArray(column.details) && column.details[row.index] == null) {
+                if (
+                  Array.isArray(column.details) &&
+                  column.details[rowInfo.sourceIndex ?? row.index] == null
+                ) {
                   // Don't expand rows without content
                 } else {
                   hasDetails = true
@@ -1821,7 +2044,7 @@ function Table({
               }
 
               // Add cell click actions. Don't override existing click actions.
-              if (onClick && !cellProps.onClick) {
+              if (onClick && !cellProps.onClick && !column.rowAction) {
                 if (onClick === 'expand') {
                   cellProps.onClick = () => row.toggleRowExpanded()
                 } else if (onClick === 'select' && canRowSelect) {
@@ -1832,12 +2055,29 @@ function Table({
               }
 
               const resolvedCellProps = cell.getCellProps(cellProps)
+              const tooltip =
+                !row.isGrouped && !column.rowAction && !column.selectable
+                  ? tooltipControls.cell(row, column, rowInfo.sourceIndex)
+                  : null
               return (
                 // Use column ID for key (like in v6) rather than row index (v7)
                 // for better rerender performance, especially with a large number of rows.
                 <TdComponent {...resolvedCellProps} key={`${colIndex}_${column.id}`}>
-                  {expander}
-                  {value}
+                  {column.editable || tooltip ? (
+                    <TooltipTarget
+                      key={JSON.stringify([row.original[rowId] ?? row.id, column.id])}
+                      tooltip={tooltip}
+                      input={Boolean(column.editable)}
+                    >
+                      {expander}
+                      {value}
+                    </TooltipTarget>
+                  ) : (
+                    <>
+                      {expander}
+                      {value}
+                    </>
+                  )}
                 </TdComponent>
               )
             })}
@@ -1906,6 +2146,16 @@ function Table({
 
     // Use instance.page which contains current page rows (or all rows when pagination is disabled)
     const rowsToRender = instance.page
+    const addedRows = instance.addedRows.length > 0 && (
+      <TbodyComponent
+        {...instance.getTableBodyProps({
+          className: classNames('rt-added-rows', virtual && 'rt-added-rows-virtual')
+        })}
+        aria-label={language.rowAddedLabel}
+      >
+        {instance.addedRows.map((row, index) => renderRow(row, rowsToRender.length + index))}
+      </TbodyComponent>
+    )
 
     let tbodyClassName = css(theme.tableBodyStyle)
     let noData
@@ -1923,17 +2173,20 @@ function Table({
     // Virtual rendering
     if (virtual) {
       return (
-        <VirtualTbody
-          tbodyProps={tbodyProps}
-          TbodyComponent={TbodyComponent}
-          rowsToRender={rowsToRender}
-          renderRow={renderRow}
-          renderPadRow={renderPadRow}
-          compact={compact}
-          scrollElementRef={tableElement}
-          noData={noData}
-          minRows={minRows}
-        />
+        <>
+          <VirtualTbody
+            tbodyProps={tbodyProps}
+            TbodyComponent={TbodyComponent}
+            rowsToRender={rowsToRender}
+            renderRow={renderRow}
+            renderPadRow={renderPadRow}
+            compact={compact}
+            scrollElementRef={tableElement}
+            noData={noData}
+            minRows={minRows}
+          />
+          {addedRows}
+        </>
       )
     }
 
@@ -1949,11 +2202,14 @@ function Table({
     }
 
     return (
-      <TbodyComponent {...tbodyProps}>
-        {rows}
-        {padRows}
-        {noData}
-      </TbodyComponent>
+      <>
+        <TbodyComponent {...tbodyProps}>
+          {rows}
+          {padRows}
+          {noData}
+        </TbodyComponent>
+        {addedRows}
+      </>
     )
   }
 
@@ -2007,7 +2263,7 @@ function Table({
   //
   // Unused for server-side pagination.
   const maxRowCount = React.useRef(
-    paginateSubRows ? instance.flatRows.length : instance.rows.length
+    (paginateSubRows ? instance.flatRows.length : instance.rows.length) - instance.addedRows.length
   )
 
   React.useEffect(() => {
@@ -2015,11 +2271,13 @@ function Table({
   }, [data])
 
   React.useEffect(() => {
-    const rowCount = paginateSubRows ? instance.flatRows.length : instance.rows.length
+    const rowCount =
+      (paginateSubRows ? instance.flatRows.length : instance.rows.length) -
+      instance.addedRows.length
     if (rowCount > maxRowCount.current) {
       maxRowCount.current = rowCount
     }
-  }, [paginateSubRows, instance.flatRows, instance.rows])
+  }, [paginateSubRows, instance.flatRows, instance.rows, instance.addedRows])
 
   const makePagination = () => {
     if (showPagination === false) {
@@ -2062,7 +2320,9 @@ function Table({
         canPrevious={instance.canPreviousPage}
         onPageChange={instance.gotoPage}
         onPageSizeChange={instance.setPageSize}
-        rowCount={serverRowCount != null ? serverRowCount : instance.rows.length}
+        rowCount={
+          serverRowCount != null ? serverRowCount : instance.rows.length - instance.addedRows.length
+        }
         theme={theme}
         language={language}
       />
@@ -2070,7 +2330,6 @@ function Table({
   }
 
   // Add keyboard-only focus styles
-  const rootElement = React.useRef(null)
   const keyboardActiveProps = {
     onMouseDown: () => {
       rootElement.current.classList.remove('rt-keyboard-active')
@@ -2176,6 +2435,7 @@ function Table({
     const toggleAllRowsExpanded = instance.toggleAllRowsExpanded
 
     const updateState = newState => {
+      const editing = getEditing()
       if (newState.jsEvals) {
         for (let key of newState.jsEvals) {
           window.HTMLWidgets.evaluateStringMember(newState, key)
@@ -2183,7 +2443,30 @@ function Table({
       }
       if (newState.data != null) {
         const data = normalizeColumnData(newState.data, dataColumns)
+        if (editing.enabled) {
+          validateEditingData(data, rowId, dataColumns)
+          editing.clear()
+          getRowControls().clear(data)
+          setRowSourceData(data)
+        }
         setNewData(data)
+      }
+      if (newState.edit != null) {
+        editing.resolve(newState.edit)
+      }
+      if (newState.disabledInputs != null) {
+        editing.updateDisabledInputs(newState.disabledInputs)
+      }
+      if (newState.rowActions != null) {
+        if (!rowActionsEnabled)
+          throw new Error('Row actions must be configured when constructing the table')
+        getRowControls().setSettings(newState.rowActions)
+      }
+      if (newState.tooltips != null) getTooltipControls().update(newState.tooltips)
+      if (newState.addRow != null) {
+        if (!rowActionsEnabled)
+          throw new Error('Row actions must be configured when constructing the table')
+        getRowControls().receive(newState.addRow)
       }
       if (newState.selected != null) {
         const selectedRowIds = newState.selected.map(index => String(index))
@@ -2218,6 +2501,11 @@ function Table({
     instance.setSortBy,
     instance.gotoPage,
     instance.toggleAllRowsExpanded,
+    getEditing,
+    getRowControls,
+    getTooltipControls,
+    rowActionsEnabled,
+    rowId,
     dataColumns,
     getPageCount,
     setMeta
@@ -2376,7 +2664,7 @@ function Table({
     options.columnIds = options.columnIds.filter(id => dataColumnIds.includes(id))
     // Ensure rows are flattened and ignore sort order. Unlike instance.flatRows,
     // instance.preGroupedRows excludes aggregated rows and uses the original data order.
-    const rows = instance.preGroupedRows.map(row => row.values)
+    const rows = [...instance.preGroupedRows, ...instance.addedRows].map(row => row.values)
     const csv = rowsToCSV(rows, options)
     return csv
   }
@@ -2397,6 +2685,12 @@ function Table({
     // If data is in row format, it's assumed to have all numbers normalized (NA/NaN/Inf/-Inf not as strings)
     if (!Array.isArray(data)) {
       data = normalizeColumnData(data, dataColumns)
+    }
+    if (editing.enabled) {
+      validateEditingData(data, rowId, dataColumns)
+      editing.clear()
+      rowControls.clear(data)
+      setRowSourceData(data)
     }
     setNewData(data)
     if (options.resetSelected) {
@@ -2477,6 +2771,25 @@ function Table({
         {makeTfoot()}
       </TableComponent>
       {makePagination()}
+      {rowActionsEnabled && (
+        <div className="rt-row-actions">
+          {rowControls.settings.add && (
+            <button
+              type="button"
+              className="rt-row-add"
+              disabled={!editing.available || Boolean(rowControls.pending)}
+              onClick={rowControls.requestAdd}
+            >
+              {language.rowAdd}
+            </button>
+          )}
+          <div role={rowControls.error ? 'alert' : 'status'}>
+            {rowControls.error ||
+              rowControls.status ||
+              (!editing.available ? language.editUnavailable : '')}
+          </div>
+        </div>
+      )}
     </RootComponent>
   )
 }
@@ -2507,6 +2820,12 @@ Reactable.propTypes = {
   selectionId: PropTypes.string, // Deprecated in v0.3.0
   defaultSelected: PropTypes.arrayOf(PropTypes.number),
   onClick: PropTypes.oneOfType([PropTypes.oneOf(['expand', 'select']), PropTypes.func]),
+  rowId: PropTypes.string,
+  inputIdPrefix: PropTypes.string,
+  inputNamespace: PropTypes.string,
+  disabledInputs: PropTypes.object,
+  rowActions: PropTypes.object,
+  tooltips: PropTypes.object,
   outlined: PropTypes.bool,
   bordered: PropTypes.bool,
   borderless: PropTypes.bool,

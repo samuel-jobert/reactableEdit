@@ -36,6 +36,20 @@ export const defaultLanguage = {
   selectAllSubRowsLabel: 'Select all rows in group',
   selectRowLabel: 'Select row',
 
+  editLabel: 'Edit {name}, row {rowId}',
+  editPending: 'Saving...',
+  editSaved: 'Saved',
+  editUnavailable: 'Cell editing requires a Shiny output',
+  editInvalidDate: 'Enter a valid date',
+  rowAdd: 'Add row',
+  rowRemove: '\u2212',
+  rowRemoveLabel: 'Remove row {rowId}',
+  rowRemoveConfirm: 'Remove row {rowId}?',
+  rowAddPending: 'Waiting for a new row...',
+  rowAdded: 'Row added',
+  rowRemoved: 'Row removed',
+  rowAddedLabel: 'Added rows',
+
   // Deprecated in v0.3.0
   defaultGroupHeader: 'Grouped',
   detailsCollapseLabel: 'Toggle details',

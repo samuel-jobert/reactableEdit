@@ -34,6 +34,25 @@
 #' @param cell Custom cell renderer. An R function that takes the cell value,
 #'   row index, and column name as arguments, or a [JS()] function that takes a
 #'   cell info object and table state object as arguments.
+#' @param editable Show a native Shiny input in this column? Requires `rowId` in [reactable()].
+#'   Cannot be combined with `cell`. Only leaf data cells are editable.
+#' @param editor Input type: `"text"`, `"number"`, `"select"`, `"checkbox"`, `"date"`, or `"textarea"`.
+#' @param editorOptions Named list of arguments for the corresponding Shiny input constructor.
+#'   For `"select"`, supply `choices`; selects are single-choice and do not use selectize.
+#'   IDs, labels, values, and commit timing are managed by reactable.
+#' @param inputId Custom input ID, or a function of the stable row key and column ID that returns an ID.
+#'   Return `NULL` to use the default ID. Overrides are evaluated for the initial rows.
+#'   IDs are automatically namespaced in Shiny modules.
+#' @param editValidation Require explicit server acceptance of submitted edits? Defaults to `TRUE`.
+#'   With `FALSE`, valid submissions update the browser table immediately and still notify Shiny,
+#'   but show no server-validation success indicator. The application remains responsible for persistence.
+#' @param editStatus Visual status display: `"icon"` (default), `"text"`, or `"none"`.
+#'   Accessible announcements and error messages remain available in all modes.
+#'   Status colors and positioning can be customized with CSS.
+#' @param editStatusDuration Duration of the accepted status in milliseconds. Defaults to `2000`.
+#'   Use `0` to keep it until the next input. Previous success and errors clear as soon as typing resumes.
+#' @param inputDisabled Disable this column's native inputs? Defaults to `FALSE`.
+#'   Cell rules in `reactable(disabledInputs = ...)` and per-input commands can override this default.
 #' @param grouped Custom grouped cell renderer. A [JS()] function that takes a
 #'   cell info object and table state object as arguments.
 #' @param aggregated Custom aggregated cell renderer. A [JS()] function that takes
@@ -105,6 +124,10 @@
 #'   character string.
 #'
 #'   Note that if `footerStyle` is a named list, property names should be camelCased.
+#' @param tooltip Cell tooltip text, trusted HTML, [reactableTooltip()], or `FALSE`.
+#'   Can also be an R function of cell value, row index and column name. Evaluated at construction;
+#'   use `rowId` to associate results with stable keys. New rows use the column default, not computed results.
+#' @param headerTooltip Header tooltip text, trusted HTML, [reactableTooltip()], or `FALSE`.
 #' @return A column definition object that can be used to customize columns
 #'   in `reactable()`.
 #'
@@ -155,8 +178,51 @@ colDef <- function(
   headerClass = NULL,
   headerStyle = NULL,
   footerClass = NULL,
-  footerStyle = NULL
+  footerStyle = NULL,
+  editable = FALSE,
+  editor = "text",
+  editorOptions = NULL,
+  inputId = NULL,
+  editValidation = TRUE,
+  editStatus = "icon",
+  editStatusDuration = 2000,
+  inputDisabled = FALSE,
+  tooltip = NULL,
+  headerTooltip = NULL
 ) {
+  if (!is.function(tooltip)) tooltip <- normalizeTooltip(tooltip)
+  headerTooltip <- normalizeTooltip(headerTooltip)
+
+  if (!is.logical(editable) || length(editable) != 1 || is.na(editable)) {
+    stop("`editable` must be TRUE or FALSE")
+  }
+  if (!is.character(editor) || length(editor) != 1 || is.na(editor) ||
+      !editor %in% c("text", "number", "select", "checkbox", "date", "textarea")) {
+    stop('`editor` must be "text", "number", "select", "checkbox", "date", or "textarea"')
+  }
+  if (!is.null(editorOptions) && !isNamedList(editorOptions)) {
+    stop("`editorOptions` must be a named list")
+  }
+  if (!is.null(inputId) && !is.function(inputId) && !isInputId(inputId)) {
+    stop("`inputId` must be a nonempty ID without whitespace or colons, or an R function")
+  }
+  if (editable && !is.null(cell)) {
+    stop("`editable` cannot be combined with `cell`")
+  }
+  if (!is.logical(editValidation) || length(editValidation) != 1 || is.na(editValidation)) {
+    stop("`editValidation` must be TRUE or FALSE")
+  }
+  if (!is.logical(inputDisabled) || length(inputDisabled) != 1 || is.na(inputDisabled)) {
+    stop("`inputDisabled` must be TRUE or FALSE")
+  }
+  if (!is.character(editStatus) || length(editStatus) != 1 || is.na(editStatus) ||
+      !editStatus %in% c("icon", "text", "none")) {
+    stop('`editStatus` must be "icon", "text", or "none"')
+  }
+  if (!is.numeric(editStatusDuration) || length(editStatusDuration) != 1 ||
+      !is.finite(editStatusDuration) || editStatusDuration < 0 || editStatusDuration > 2147483647) {
+    stop("`editStatusDuration` must be a finite number between 0 and 2147483647 milliseconds")
+  }
 
   if (!is.null(name) && !is.character(name)) {
     stop("`name` must be a character string")
@@ -346,6 +412,16 @@ colDef <- function(
       sortNALast = if ("sortNALast" %in% userArgs) sortNALast,
       format = format,
       cell = cell,
+      editable = if ("editable" %in% userArgs) editable,
+      editor = if ("editor" %in% userArgs) editor,
+      editorOptions = editorOptions,
+      inputId = inputId,
+      editValidation = if ("editValidation" %in% userArgs) editValidation,
+      editStatus = if ("editStatus" %in% userArgs) editStatus,
+      editStatusDuration = if ("editStatusDuration" %in% userArgs) editStatusDuration,
+      inputDisabled = if ("inputDisabled" %in% userArgs) inputDisabled,
+      tooltip = tooltip,
+      headerTooltip = headerTooltip,
       grouped = grouped,
       aggregated = aggregated,
       header = header,

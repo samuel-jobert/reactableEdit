@@ -21,6 +21,15 @@
 #'   to clear all metadata. New values are merged into the current metadata, so only
 #'   the values specified in `meta` will be updated.
 #' @param session The Shiny session object. Defaults to the current Shiny session.
+#' @param disabledInputs Input disabling rules, as in [reactable()]. Replaces the previous table rules
+#'   and clears per-input overrides, including those from shinyjs or [updateReactableInput()].
+#'   Use `list()` to clear table rules; `colDef(inputDisabled = TRUE)` defaults remain in effect.
+#'   `NULL` leaves rules unchanged. Rules use stable row keys, apply to off-page cells, and persist when data changes.
+#'   Changing these rules alone preserves page, selection, and expansion.
+#' @param rowActions Row control configuration, as in [reactable()]. Replaces current control options.
+#'   Use `list()` to hide controls. Does not remove already added rows or cancel a pending request.
+#' @param tooltips Tooltip rules as in [reactable()]. Replaces table rules and clears per-input overrides.
+#'   `list()` clears rules; `NULL` leaves them unchanged. Data replacement alone preserves rules and overrides.
 #' @return None
 #'
 #' @examples
@@ -94,7 +103,8 @@
 #'
 #' @export
 updateReactable <- function(outputId, data = NULL, sortBy = NULL, page = NULL,
-                            expanded = NULL, selected = NULL, meta = NULL, session = NULL) {
+                            expanded = NULL, selected = NULL, meta = NULL, session = NULL,
+                            disabledInputs = NULL, rowActions = NULL, tooltips = NULL) {
   if (is.null(session)) {
     if (requireNamespace("shiny", quietly = TRUE)) {
       session <- shiny::getDefaultReactiveDomain()
@@ -111,6 +121,9 @@ updateReactable <- function(outputId, data = NULL, sortBy = NULL, page = NULL,
   outputId <- session$ns(outputId)
 
   dataKey <- NULL
+  if (!is.null(disabledInputs)) disabledInputs <- normalizeDisabledInputs(disabledInputs)
+  if (!is.null(rowActions)) rowActions <- normalizeRowActions(rowActions)
+  if (!is.null(tooltips)) tooltips <- normalizeTooltips(tooltips)
   if (!is.null(data)) {
     if (!is.data.frame(data) && !is.matrix(data)) {
       stop("`data` must be a data frame or matrix")
@@ -178,6 +191,9 @@ updateReactable <- function(outputId, data = NULL, sortBy = NULL, page = NULL,
   newState <- filterNulls(list(
     data = data,
     dataKey = dataKey,
+    disabledInputs = disabledInputs,
+    rowActions = rowActions,
+    tooltips = tooltips,
     selected = selected,
     expanded = expanded,
     page = page,

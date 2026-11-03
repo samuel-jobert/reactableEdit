@@ -135,6 +135,29 @@
 #'   Server-side data processing is currently **experimental**.
 #' @param selectionId **Deprecated**. Use [getReactableState()] to get the selected rows
 #'   in Shiny.
+#' @param rowId Name of a column containing unique, nonmissing character or safe integer row keys.
+#'   Required for editable columns. This column cannot itself be editable.
+#'   Editing requires Shiny and is not supported with `server = TRUE` or `.subRows` data.
+#' @param inputIdPrefix Prefix for editable input IDs. Defaults to the Shiny output ID.
+#'   Default IDs are `<prefix>_<rowKey>_<columnId>`, with row and column components URL-encoded.
+#'   Custom prefixes are automatically namespaced in Shiny modules.
+#' @param disabledInputs Rules for disabling native inputs. A list with `rows` (stable character row keys),
+#'   `columns` (column IDs), and/or `cells` (a named list indexed by row key).
+#'   Each `cells` entry is a character vector of disabled column IDs, or named logical values.
+#'   For example, `list(rows = "car1", cells = list(car1 = list(Price = FALSE)))`
+#'   disables a row except its Price input. Cell rules override row rules and `colDef(inputDisabled = TRUE)`.
+#'   Per-input messages and external DOM changes such as `shinyjs::disable()` override these rules
+#'   and persist across pagination and virtual scrolling. Only mounted inputs can receive ID-based commands.
+#'   Disabling discards unsent drafts; already pending edits can finish without enabling the input.
+#'   These rules do not provide authorization or server validation.
+#' @param tooltips Tooltip rules for rows, columns, cells and headers. See [reactableTooltip()].
+#'   Rules use stable `rowId` keys and persist across data replacement. Cell rules override rows, then columns.
+#' @param rowActions Optional row controls: `list(add = TRUE, remove = TRUE)`.
+#'   `removeDisabled` specifies stable character row keys whose removal buttons are disabled.
+#'   Removal is immediate after confirmation and notifies Shiny. Addition requests a row from the server.
+#'   See [getReactableRowAction()] and [addReactableRow()]. Added rows remain at the bottom, outside
+#'   sorting and filtering, until full data replacement. Requires `rowId` and a client-side Shiny table
+#'   without `.subRows` or Crosstalk data.
 #' @return A `reactable` HTML widget that can be used in R Markdown documents
 #'   and Shiny applications, or viewed from an R console.
 #'
@@ -239,7 +262,12 @@ reactable <- function(
   elementId = NULL,
   static = getOption("reactable.static", FALSE),
   server = FALSE,
-  selectionId = NULL
+  selectionId = NULL,
+  rowId = NULL,
+  inputIdPrefix = NULL,
+  disabledInputs = NULL,
+  rowActions = NULL,
+  tooltips = NULL
 ) {
   crosstalkKey <- NULL
   crosstalkGroup <- NULL
@@ -387,6 +415,43 @@ reactable <- function(
       if (!all(group$columns %in% columnKeys)) {
         stop("`columnGroups` columns must exist in `data`")
       }
+    }
+  }
+
+  editableColumns <- names(Filter(function(col) isTRUE(col$editable), columns))
+  if (!is.null(rowId)) {
+    validateEditRowId(data, rowId)
+  }
+  if (!is.null(inputIdPrefix) && !isInputId(inputIdPrefix)) {
+    stop("`inputIdPrefix` must be a nonempty ID without whitespace or colons")
+  }
+  if (!is.null(disabledInputs)) disabledInputs <- normalizeDisabledInputs(disabledInputs)
+  if (!is.null(tooltips)) {
+    tooltips <- normalizeTooltips(tooltips)
+    if (is.null(rowId) && (length(tooltips$rows) || length(tooltips$cells))) {
+      stop("Row and cell tooltip rules require `rowId`")
+    }
+  }
+  if (!is.null(rowActions)) {
+    rowActions <- normalizeRowActions(rowActions)
+    if (is.null(rowId)) stop("Row actions require a `rowId` column")
+    if (!isFALSE(server) || ".subRows" %in% names(data) || !is.null(crosstalkGroup)) {
+      stop("Row actions are not supported with server processing, .subRows, or Crosstalk data")
+    }
+    if (!requireNamespace("shiny", quietly = TRUE)) stop("Row actions require the shiny package")
+  }
+  if (length(editableColumns) > 0) {
+    if (is.null(rowId)) {
+      stop("Editable columns require a `rowId` column")
+    }
+    if (rowId %in% editableColumns) {
+      stop("The `rowId` column cannot be editable")
+    }
+    if (!isFALSE(server) || ".subRows" %in% names(data)) {
+      stop("Editing is not supported with `server` processing or `.subRows` data")
+    }
+    if (!requireNamespace("shiny", quietly = TRUE)) {
+      stop("The shiny package is required for editable columns")
     }
   }
 
@@ -581,6 +646,27 @@ reactable <- function(
     if (!is.null(columns[[key]])) {
       column <- mergeLists(column, columns[[key]])
     }
+    if (is.function(column$tooltip)) {
+      values <- lapply(seq_len(nrow(data)), function(index) {
+        normalizeTooltip(callFunc(column$tooltip, data[[key]][[index]], index, key))
+      })
+      if (!is.null(rowId)) {
+        column$tooltipByKey <- stats::setNames(values, as.character(data[[rowId]]))
+      } else {
+        column$tooltipByIndex <- values
+      }
+      column$tooltip <- NULL
+    }
+
+    if (isTRUE(column$editable)) {
+      if (!is.null(column$cell)) {
+        stop("`editable` cannot be combined with `cell`")
+      }
+      column <- buildCellEditor(column, data[[rowId]], data[[key]])
+      addDependencies(column$editorTag)
+      column$editorHtml <- as.character(htmltools::renderTags(column$editorTag)$html)
+      column$editorTag <- NULL
+    }
 
     cell <- column[["cell"]]
     if (is.function(cell)) {
@@ -726,6 +812,14 @@ reactable <- function(
     }
   }
 
+  if (length(editableColumns) > 0 || !is.null(rowActions)) {
+    preRenderHook <- function(instance) {
+      session <- shiny::getDefaultReactiveDomain()
+      instance$x$tag$attribs$inputNamespace <- if (!is.null(session)) session$ns("") else ""
+      instance
+    }
+  }
+
   # Pre-compute / pre-serialize data to JSON to optimize for large datasets that can take seconds to serialize.
   # By pre-serializing, we only pay the serialization cost once at the start, rather than every time when
   # rendering or printing the widget. This was originally done as a necessity to change the JSON serializer,
@@ -767,6 +861,11 @@ reactable <- function(
     selectionId = selectionId,
     defaultSelected = defaultSelected,
     onClick = onClick,
+    rowId = rowId,
+    inputIdPrefix = inputIdPrefix,
+    disabledInputs = disabledInputs,
+    rowActions = rowActions,
+    tooltips = tooltips,
     highlight = if (highlight) TRUE,
     outlined = if (outlined) TRUE,
     bordered = if (bordered) TRUE,

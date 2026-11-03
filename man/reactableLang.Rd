@@ -30,7 +30,20 @@ reactableLang(
   detailsCollapseLabel = NULL,
   deselectAllRowsLabel = NULL,
   deselectAllSubRowsLabel = NULL,
-  deselectRowLabel = NULL
+  deselectRowLabel = NULL,
+  editLabel = "Edit {name}, row {rowId}",
+  editPending = "Saving...",
+  editSaved = "Saved",
+  editUnavailable = "Cell editing requires a Shiny output",
+  editInvalidDate = "Enter a valid date",
+  rowAdd = "Add row",
+  rowRemove = "\u2212",
+  rowRemoveLabel = "Remove row {rowId}",
+  rowRemoveConfirm = "Remove row {rowId}?",
+  rowAddPending = "Waiting for a new row...",
+  rowAdded = "Row added",
+  rowRemoved = "Row removed",
+  rowAddedLabel = "Added rows"
 )
 }
 \arguments{
@@ -103,6 +116,32 @@ the \code{"jump"} pagination type.}
 \item{deselectAllSubRowsLabel}{Deprecated and no longer used.}
 
 \item{deselectRowLabel}{Deprecated and no longer used.}
+
+\item{editLabel}{Accessible cell input label. Takes \code{{name}} and \code{{rowId}} parameters.}
+
+\item{editPending}{Status while a cell edit is waiting for server confirmation.}
+
+\item{editSaved}{Status after the server accepts a cell edit.}
+
+\item{editUnavailable}{Message when cell editing is rendered outside a Shiny output.}
+
+\item{editInvalidDate}{Validation message for an invalid date entered in a cell.}
+
+\item{rowAdd}{Text for the add-row button.}
+
+\item{rowRemove}{Text for remove-row buttons.}
+
+\item{rowRemoveLabel}{Accessible remove-row label. Takes \code{{rowId}}.}
+
+\item{rowRemoveConfirm}{Confirmation before removing a row. Takes \code{{rowId}}.}
+
+\item{rowAddPending}{Status while waiting for the server to supply a row.}
+
+\item{rowAdded}{Status after adding a row.}
+
+\item{rowRemoved}{Status after removing a row.}
+
+\item{rowAddedLabel}{Accessible label for the appended row section.}
 }
 \value{
 A language options object that can be used to customize the language

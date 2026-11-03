@@ -1,0 +1,301 @@
+---
+title: "Native Shiny cell editing test cases"
+output: html_document
+---
+
+Run the chunk below in an interactive R session after loading the development package with `devtools::load_all()`.
+Alternatively, run `source("@travail/app.R"); runEditingDemo()` from the repository root.
+
+```{r app, eval=FALSE, purl=TRUE}
+library(shiny)
+library(reactable)
+
+makeEditingApp <- function(virtual = FALSE, module = FALSE) {
+  cars <- MASS::Cars93[1:12, c("Manufacturer", "Model", "Type", "Price")]
+  cars$id <- paste0("car", seq_len(nrow(cars)))
+  cars$Manufacturer <- as.character(cars$Manufacturer)
+  cars$Model <- as.character(cars$Model)
+  cars$Type <- as.character(cars$Type)
+  cars$Available <- TRUE
+  cars$CheckedOn <- as.Date("2026-01-01")
+  cars$Notes <- ""
+  columns <- list(
+    id = colDef(show = FALSE),
+    Model = colDef(tooltip = function(value) paste("Modele en lecture seule :", value),
+                   headerTooltip = "Colonne non editable avec tooltip"),
+    Manufacturer = colDef(editable = TRUE, editor = "text",
+                          headerTooltip = reactableTooltip(tags$b("Constructeur du vehicule")),
+                          tooltip = function(value) paste("Constructeur initial :", value),
+                          editStatus = "text", editStatusDuration = 5000),
+    Type = colDef(editable = TRUE, editor = "select",
+                  editorOptions = list(choices = unique(cars$Type))),
+    Price = colDef(editable = TRUE, editor = "number",
+                   tooltip = reactableTooltip(tagList(tags$b("Prix"), tags$br(), "Valeur positive, en milliers.")),
+                   editorOptions = list(step = 0.01)),
+    Available = colDef(editable = TRUE, editor = "checkbox", editStatus = "none", inputDisabled = TRUE,
+                       tooltip = "Champ desactive ; aide accessible au clavier sur son conteneur."),
+    CheckedOn = colDef(editable = TRUE, editor = "date"),
+    Notes = colDef(editable = TRUE, editor = "textarea", editValidation = FALSE,
+                   editorOptions = list(rows = 2))
+  )
+  tbl <- reactable(
+    cars, rowId = "id", columns = columns, selection = "multiple",
+    rowActions = list(add = TRUE, remove = TRUE, removeDisabled = "car1"),
+    tooltips = list(cells = list(car1 = list(Price = "Prix de la premiere voiture"))),
+    disabledInputs = list(rows = "car2",
+      cells = list(car1 = list(Available = FALSE), car2 = list(Manufacturer = FALSE), car3 = "Notes")),
+    filterable = TRUE, searchable = TRUE, pagination = !virtual, defaultPageSize = 4,
+    virtual = virtual, height = if (virtual) 320 else NULL,
+    language = reactableLang(
+      editLabel = "Modifier {name}, ligne {rowId}",
+      editPending = "Enregistrement...",
+      editSaved = "Enregistre",
+      editUnavailable = "Edition disponible uniquement dans Shiny",
+      rowAdd = "Ajouter une ligne",
+      rowRemoveLabel = "Supprimer la ligne {rowId}",
+      rowRemoveConfirm = "Supprimer la ligne {rowId} ?",
+      rowAddPending = "Preparation de la nouvelle ligne...",
+      rowAdded = "Ligne ajoutee", rowRemoved = "Ligne supprimee",
+      rowAddedLabel = "Lignes ajoutees"
+    )
+  )
+
+  ns <- if (module) NS("demo") else identity
+  ui <- fluidPage(
+    titlePanel("Edition native Shiny"),
+    p("Prix positif, constructeur non vide. Les autres modifications sont acceptees."),
+    p("Ajouter : ligne complete fournie par R, epinglee en bas jusqu'a integration.",
+      "Supprimer : confirmation puis notification serveur. car1 est protegee."),
+    checkboxInput(ns("custom_ids"), "ID personnalise pour le prix des nouvelles lignes", FALSE),
+    actionButton(ns("integrate_rows"), "Integrer les ajouts au tri et aux filtres"),
+    div(
+      actionButton(ns("tooltip_rules"), "Tooltip par cellule et en-tete"),
+      actionButton(ns("tooltip_input"), "Tooltip du premier prix par ID"),
+      actionButton(ns("tooltip_clear"), "Effacer les regles de tooltip")
+    ),
+    p("Prix : tick 2 secondes. Constructeur : statut texte 5 secondes. Case : sans indicateur.",
+      "Notes : application locale, sans validation serveur ni tick ; sauvegarde dans l'observateur."),
+    actionButton(ns("native_update"), "updateNumericInput : premier prix = 25"),
+    actionButton(ns("native_options"), "updateTextInput : modifier le placeholder"),
+    div(
+      actionButton(ns("disable_row"), "Desactiver ligne car1"),
+      actionButton(ns("disable_column"), "Desactiver colonne Price"),
+      actionButton(ns("clear_disabled"), "Effacer regles et exceptions"),
+      actionButton(ns("disable_cell"), "Desactiver premier prix par ID"),
+      actionButton(ns("enable_cell"), "Reactiver premier prix par ID"),
+      actionButton(ns("combined_input"), "Prix = 35 et disabled dans un message"),
+      if (requireNamespace("shinyjs", quietly = TRUE)) tagList(
+        shinyjs::useShinyjs(),
+        actionButton(ns("shinyjs_disable"), "shinyjs : desactiver premier prix"),
+        actionButton(ns("shinyjs_enable"), "shinyjs : reactiver premier prix")
+      )
+    ),
+    reactableOutput(ns("cars")),
+    h4("Derniere modification"),
+    verbatimTextOutput(ns("last_edit")),
+    h4("Derniere action de ligne"),
+    verbatimTextOutput(ns("last_action")),
+    h4("Observation individuelle de input$cars_car1_Price"),
+    verbatimTextOutput(ns("individual")),
+    h4("Donnees confirmees cote serveur"),
+    tableOutput(ns("saved"))
+  )
+  server <- function(input, output, session) {
+    saved <- reactiveVal(cars)
+    lastEdit <- reactiveVal(NULL)
+    lastAction <- reactiveVal(NULL)
+    nextKey <- 12L
+    individual <- reactiveVal(NULL)
+    output$cars <- renderReactable(tbl)
+    output$saved <- renderTable(saved())
+    output$last_edit <- renderPrint(lastEdit())
+    output$last_action <- renderPrint(lastAction())
+    output$individual <- renderPrint(individual())
+
+    observeEvent(input$cars_car1_Price, {
+      individual(input$cars_car1_Price)
+    }, ignoreInit = TRUE)
+
+    observeEvent(getReactableRowAction("cars"), {
+      action <- getReactableRowAction("cars")
+      lastAction(action)
+      current <- saved()
+      if (identical(action$action, "add")) {
+        nextKey <<- nextKey + 1L
+        row <- cars[1, , drop = FALSE]
+        row$id <- paste0("car", nextKey)
+        row$Manufacturer <- "Nouveau"
+        row$Model <- "Nouveau modele"
+        row$Price <- 0
+        row$Available <- FALSE
+        row$Notes <- ""
+        ids <- if (isTRUE(input$custom_ids)) c(Price = paste0("new_price_", row$id)) else NULL
+        # A production application must check permissions and persist before replying.
+        saved(rbind(current, row))
+        addReactableRow("cars", row, inputIds = ids, requestId = action$requestId)
+      } else if (identical(action$action, "remove")) {
+        index <- match(action$rowId, current$id)
+        if (is.na(index) || identical(action$rowId, "car1")) {
+          showNotification("Suppression non autorisee ; donnees restaurees", type = "error")
+          updateReactable("cars", data = current)
+          return()
+        }
+        saved(current[-index, , drop = FALSE])
+      }
+    }, ignoreInit = TRUE)
+
+    observeEvent(input$integrate_rows, {
+      updateReactable("cars", data = saved())
+    })
+
+    observeEvent(input$tooltip_rules, {
+      updateReactable("cars", tooltips = list(
+        rows = list(car2 = "Aide commune a car2"),
+        cells = list(car1 = list(Price = reactableTooltip(
+          tags$span(tags$b("Prix car1"), " : aide mise a jour"), placement = "right"
+        ))),
+        headers = list(Price = "Le serveur accepte les prix positifs")
+      ))
+    })
+    observeEvent(input$tooltip_input, {
+      updateReactableTooltip(session, "cars_car1_Price",
+        reactableTooltip(tags$em("Aide prioritaire par ID"), placement = "bottom"))
+    })
+    observeEvent(input$tooltip_clear, {
+      updateReactable("cars", tooltips = list())
+    })
+
+    observeEvent(getReactableEdit("cars"), {
+      edit <- getReactableEdit("cars")
+      lastEdit(edit)
+      current <- saved()
+      index <- match(edit$rowId, current$id)
+      editable <- setdiff(names(current), "id")
+      if (is.na(index) || !edit$columnId %in% editable) {
+        resolveReactableEdit("cars", edit, error = "Cellule non autorisee")
+        return()
+      }
+      value <- edit$value
+      valid <- switch(edit$columnId,
+        Manufacturer = is.character(value) && length(value) == 1 && nzchar(trimws(value)),
+        Type = is.character(value) && length(value) == 1 && value %in% unique(cars$Type),
+        Price = is.numeric(value) && length(value) == 1 && is.finite(value) && value >= 0,
+        Available = is.logical(value) && length(value) == 1 && !is.na(value),
+        CheckedOn = is.null(value) || (is.character(value) && length(value) == 1 &&
+          grepl("^\\d{4}-\\d{2}-\\d{2}$", value) && !is.na(as.Date(value))),
+        Notes = is.character(value) && length(value) == 1
+      )
+      if (!isTRUE(valid)) {
+        resolveReactableEdit("cars", edit, error = "Valeur refusee par le serveur")
+        return()
+      }
+      old <- current[[edit$columnId]][index]
+      oldJSON <- if (is.na(old)) NULL else if (inherits(old, "Date")) as.character(old) else unname(old)
+      if (!isTRUE(all.equal(oldJSON, edit$oldValue, check.attributes = FALSE, tolerance = 0))) {
+        resolveReactableEdit("cars", edit, error = "La valeur a change sur le serveur ; recharger les donnees")
+        return()
+      }
+      if (edit$columnId == "Manufacturer") value <- trimws(value)
+      if (edit$columnId == "Price") value <- round(value, 2)
+      current[[edit$columnId]][index] <- if (edit$columnId == "CheckedOn") {
+        if (is.null(value)) as.Date(NA) else as.Date(value)
+      } else {
+        value
+      }
+      saved(current)
+      if (edit$columnId != "Notes") resolveReactableEdit("cars", edit, value = value)
+    }, ignoreInit = TRUE)
+
+    observeEvent(input$native_update, {
+      # This targets a mounted widget: keep the first row visible for this test.
+      current <- saved()
+      current$Price[1] <- 25
+      saved(current)
+      updateNumericInput(session, "cars_car1_Price", value = 25)
+    })
+    observeEvent(input$native_options, {
+      updateTextInput(session, "cars_car1_Manufacturer", placeholder = "Constructeur")
+    })
+    observeEvent(input$disable_row, {
+      updateReactable("cars", disabledInputs = list(rows = "car1"))
+    })
+    observeEvent(input$disable_column, {
+      updateReactable("cars", disabledInputs = list(columns = "Price"))
+    })
+    observeEvent(input$clear_disabled, {
+      updateReactable("cars", disabledInputs = list())
+    })
+    observeEvent(input$disable_cell, {
+      updateReactableInput(session, "cars_car1_Price", disabled = TRUE)
+    })
+    observeEvent(input$enable_cell, {
+      updateReactableInput(session, "cars_car1_Price", disabled = FALSE)
+    })
+    observeEvent(input$combined_input, {
+      current <- saved()
+      current$Price[1] <- 35
+      saved(current)
+      session$sendInputMessage("cars_car1_Price", list(value = 35, disabled = TRUE))
+    })
+    if (requireNamespace("shinyjs", quietly = TRUE)) {
+      observeEvent(input$shinyjs_disable, {
+        shinyjs::disable("cars_car1_Price")
+      })
+      observeEvent(input$shinyjs_enable, {
+        shinyjs::enable("cars_car1_Price")
+      })
+    }
+  }
+  appServer <- if (module) {
+    function(input, output, session) moduleServer("demo", server)
+  } else {
+    server
+  }
+  shinyApp(ui, appServer)
+}
+
+makeEditingApp()
+```
+
+## Manual checks
+
+- Hover/focus a header and an input. Escape closes help first; a second Escape cancels an editor draft.
+- Focus the container around a disabled Available input. Its help must remain keyboard accessible.
+- Update by cell/header rules, then by input ID. Page/scroll away and back; ID override persists.
+- Clear rules: column defaults return. Check validation errors keep their own accessible descriptions.
+- With a tooltip open, scroll/resize near viewport edges; it remains readable and hoverable.
+- Repeat in module and virtual mode; deleted/unmounted cells must not leave orphan tooltip portals.
+- Add twice, with default IDs then the custom price ID. Check server data and the action event.
+- Filter/search to exclude the new values, sort, group, or change pages: additions remain at the bottom.
+- Integrate additions: rows now participate in sorting, filtering, grouping and pagination.
+- Cancel removal: nothing changes. Confirm: server data and remaining selection/expansion stay consistent.
+- Repeat with an empty table and `makeEditingApp(virtual = TRUE, module = TRUE)`.
+- In virtual mode, scroll away and back; appended inputs remain reachable, without duplicate binding IDs.
+
+1. Change each of the six editor types. Check individual inputs, global edit payload and confirmed server data.
+2. Type without leaving a field: no edit should be sent. Blur or press Enter to submit.
+3. Use Enter in Notes to insert a newline, Ctrl/Cmd+Enter to submit, and Escape to cancel.
+4. Enter a negative price: the server rejects it and an accessible error remains beside the draft.
+5. Enter a constructor surrounded by spaces: the server returns the trimmed value to the same native input.
+6. Edit after sorting or filtering: the stable `carN` key must identify the original record.
+7. Leave drafts on one page, navigate away and return. Confirmed data must not be overwritten by a draft.
+8. Use the two native updater buttons while the first row is visible. No global user-edit event should be created.
+9. Run `makeEditingApp(virtual = TRUE)` and repeat after scrolling away and back. Test pagination in the default mode.
+10. Check keyboard focus, screen-reader labels, pending announcements and error descriptions.
+11. Render the table inside a Shiny module and verify namespaced input IDs and acknowledgments.
+12. Configure an ID override, then configure a duplicate override: the latter must fail explicitly.
+13. Price: check neutral pending state, then a green tick for 2 seconds after acceptance.
+    Start typing before expiry: no previous tick or error should remain, even for an invalid draft.
+14. Manufacturer uses text status for 5 seconds; Available hides indicators but retains accessible announcements.
+15. Notes applies locally without a pending state or validation tick.
+    Its server observer still receives and saves edits.
+16. Set `editStatusDuration = 0`, then accept an edit: success remains until new input.
+    Scroll or paginate away and back after a timed success expires: it must not reappear.
+17. Initially, Available is disabled except car1; car2 is disabled except Manufacturer; car3 Notes is disabled.
+18. Disable a row or column, then enable its Price cell by ID: the explicit cell exception must win.
+    Reset table rules: per-ID exceptions clear, while Available's column default remains disabled.
+19. Type a draft, then disable through a table rule or external DOM command: confirmed data returns without an edit.
+    Disable while an edit is pending: acceptance or rejection must not enable the input.
+20. Send a combined value/disabled message, then a native value update: the disabled input still accepts server values.
+21. When shinyjs is installed, disable/enable by ID and scroll away/back: the explicit override must survive.
+    Without shinyjs, test the same external DOM change with the browser's disabled property.

@@ -56,6 +56,19 @@
 #' @param deselectAllRowsLabel Deprecated and no longer used.
 #' @param deselectAllSubRowsLabel Deprecated and no longer used.
 #' @param deselectRowLabel Deprecated and no longer used.
+#' @param editLabel Accessible cell input label. Takes `{name}` and `{rowId}` parameters.
+#' @param editPending Status while a cell edit is waiting for server confirmation.
+#' @param editSaved Status after the server accepts a cell edit.
+#' @param editUnavailable Message when cell editing is rendered outside a Shiny output.
+#' @param editInvalidDate Validation message for an invalid date entered in a cell.
+#' @param rowAdd Text for the add-row button.
+#' @param rowRemove Text for remove-row buttons.
+#' @param rowRemoveLabel Accessible remove-row label. Takes `{rowId}`.
+#' @param rowRemoveConfirm Confirmation before removing a row. Takes `{rowId}`.
+#' @param rowAddPending Status while waiting for the server to supply a row.
+#' @param rowAdded Status after adding a row.
+#' @param rowRemoved Status after removing a row.
+#' @param rowAddedLabel Accessible label for the appended row section.
 #'
 #' @return A language options object that can be used to customize the language
 #'   strings in `reactable()`.
@@ -86,7 +99,20 @@
 #'   detailsCollapseLabel = NULL,
 #'   deselectAllRowsLabel = NULL,
 #'   deselectAllSubRowsLabel = NULL,
-#'   deselectRowLabel = NULL
+#'   deselectRowLabel = NULL,
+#'   editLabel = "Edit {name}, row {rowId}",
+#'   editPending = "Saving...",
+#'   editSaved = "Saved",
+#'   editUnavailable = "Cell editing requires a Shiny output",
+#'   editInvalidDate = "Enter a valid date",
+#'   rowAdd = "Add row",
+#'   rowRemove = "\u2212",
+#'   rowRemoveLabel = "Remove row {rowId}",
+#'   rowRemoveConfirm = "Remove row {rowId}?",
+#'   rowAddPending = "Waiting for a new row...",
+#'   rowAdded = "Row added",
+#'   rowRemoved = "Row removed",
+#'   rowAddedLabel = "Added rows"
 #' )
 #'
 #' @examples
@@ -160,7 +186,20 @@ reactableLang <- function(
   detailsCollapseLabel = NULL,
   deselectAllRowsLabel = NULL,
   deselectAllSubRowsLabel = NULL,
-  deselectRowLabel = NULL
+  deselectRowLabel = NULL,
+  editLabel = "Edit {name}, row {rowId}",
+  editPending = "Saving...",
+  editSaved = "Saved",
+  editUnavailable = "Cell editing requires a Shiny output",
+  editInvalidDate = "Enter a valid date",
+  rowAdd = "Add row",
+  rowRemove = "\u2212",
+  rowRemoveLabel = "Remove row {rowId}",
+  rowRemoveConfirm = "Remove row {rowId}?",
+  rowAddPending = "Waiting for a new row...",
+  rowAdded = "Row added",
+  rowRemoved = "Row removed",
+  rowAddedLabel = "Added rows"
 ) {
 
   if (!is.null(defaultGroupHeader)) {

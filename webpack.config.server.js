@@ -88,8 +88,8 @@ module.exports = (env, argv) => {
         // react-dom/server, and the React/ReactDOMServer versions should ideally match.
 
         // Ignore CSS imports, which are included via the external CSS file
-        './reactable.css': {},
-        './react-table.css': {}
+        './reactable.css': 'var {}',
+        './react-table.css': 'var {}'
       }
     ],
 

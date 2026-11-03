@@ -12,7 +12,10 @@ updateReactable(
   expanded = NULL,
   selected = NULL,
   meta = NULL,
-  session = NULL
+  session = NULL,
+  disabledInputs = NULL,
+  rowActions = NULL,
+  tooltips = NULL
 )
 }
 \arguments{
@@ -42,6 +45,18 @@ to clear all metadata. New values are merged into the current metadata, so only
 the values specified in \code{meta} will be updated.}
 
 \item{session}{The Shiny session object. Defaults to the current Shiny session.}
+
+\item{disabledInputs}{Input disabling rules, as in \code{\link[=reactable]{reactable()}}. Replaces the previous table rules
+and clears per-input overrides, including those from shinyjs or \code{\link[=updateReactableInput]{updateReactableInput()}}.
+Use \code{list()} to clear table rules; \code{colDef(inputDisabled = TRUE)} defaults remain in effect.
+\code{NULL} leaves rules unchanged. Rules use stable row keys, apply to off-page cells, and persist when data changes.
+Changing these rules alone preserves page, selection, and expansion.}
+
+\item{rowActions}{Row control configuration, as in \code{\link[=reactable]{reactable()}}. Replaces current control options.
+Use \code{list()} to hide controls. Does not remove already added rows or cancel a pending request.}
+
+\item{tooltips}{Tooltip rules as in \code{\link[=reactable]{reactable()}}. Replaces table rules and clears per-input overrides.
+\code{list()} clears rules; \code{NULL} leaves them unchanged. Data replacement alone preserves rules and overrides.}
 }
 \value{
 None

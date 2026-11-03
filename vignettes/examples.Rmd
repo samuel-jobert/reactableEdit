@@ -907,6 +907,320 @@ browsable(
 ```
 
 
+## Editable cells in Shiny
+
+::: {.callout}
+New in v0.4.5.9000
+:::
+
+Use `rowId` to identify records and `colDef(editable = TRUE)` to show native Shiny inputs.
+Available editors are `"text"`, `"number"`, `"select"`, `"checkbox"`, `"date"`, and `"textarea"`.
+Pass native constructor options through `editorOptions`, such as `list(choices = ...)` for a select.
+
+```{r, eval=FALSE}
+library(shiny)
+library(reactable)
+
+cars <- data.frame(id = paste0("car", seq_len(nrow(mtcars))), Price = mtcars$mpg)
+tbl <- reactable(cars, rowId = "id", columns = list(
+  id = colDef(show = FALSE),
+  Price = colDef(editable = TRUE, editor = "number", editorOptions = list(step = 0.1))
+))
+
+ui <- fluidPage(reactableOutput("cars"))
+server <- function(input, output, session) {
+  saved <- reactiveVal(cars)
+  output$cars <- renderReactable(tbl)
+  observeEvent(getReactableEdit("cars"), {
+    edit <- getReactableEdit("cars")
+    data <- saved()
+    index <- match(edit$rowId, data$id)
+    value <- edit$value
+    if (is.na(index) || !identical(edit$columnId, "Price") ||
+        !is.numeric(value) || length(value) != 1 || !is.finite(value) || value < 0) {
+      resolveReactableEdit("cars", edit, error = "Enter a nonnegative number")
+      return()
+    }
+    data$Price[index] <- value
+    saved(data)
+    resolveReactableEdit("cars", edit)
+  }, ignoreInit = TRUE)
+}
+shinyApp(ui, server)
+```
+
+Each edit includes `editId`, `inputId`, `rowId`, `columnId`, `oldValue`, and `value`.
+The application must validate these fields, permissions and allowed values before saving.
+By default, call `resolveReactableEdit()` for every submission, optionally passing a normalized `value`,
+or `error` to reject it.
+Until confirmation, the input shows the draft and is read-only or disabled;
+rejection retains an editable draft with an error message.
+Do not rebuild the table whenever the saved data changes.
+
+### Validation indicators
+
+::: {.callout}
+New in v0.4.5.9000
+:::
+
+Accepted edits show a small green tick at the input's upper-right for 2000 milliseconds by default.
+Pending server checks show a neutral indicator, not a validation result.
+Previous success and errors disappear as soon as new input begins; drafts are not validated while typing.
+Local format constraints are checked only on submission. A server rejection shows an error icon and message.
+
+Configure statuses per column, or use `defaultColDef` to set table-wide defaults:
+
+```{r, eval=FALSE}
+colDef(editable = TRUE, editStatus = "icon", editStatusDuration = 2000)
+colDef(editable = TRUE, editStatus = "text", editStatusDuration = 5000)
+colDef(editable = TRUE, editStatusDuration = 0)  # Keep success until new input
+colDef(editable = TRUE, editStatus = "none")    # Hide indicators, not error messages
+colDef(editable = TRUE, editValidation = FALSE)
+```
+
+With `editValidation = FALSE`, valid submissions immediately update the browser table and still send individual
+Shiny inputs and global edit events. No server-validation success is shown and resolutions are ignored.
+The application must still validate and persist its own data; this option is not a security or persistence mechanism.
+Accessible status announcements and error messages remain available in all display modes.
+
+Customize colors and placement with CSS. Scope the rule to a table ID for table-specific styling:
+
+```css
+.rt-cell-editor {
+  --rt-edit-success-color: #18752c;
+  --rt-edit-error-color: #b30000;
+  --rt-edit-pending-color: #595959;
+  --rt-edit-indicator-top: -0.35em;
+  --rt-edit-indicator-right: 0.15em;
+}
+```
+
+### Disabling inputs
+
+::: {.callout}
+New in v0.4.5.9000
+:::
+
+Use `colDef(inputDisabled = TRUE)` for a disabled column, or table rules for rows, columns, and individual cells:
+
+```{r, eval=FALSE}
+tbl <- reactable(cars, rowId = "id",
+  columns = list(Price = colDef(editable = TRUE, editor = "number")),
+  disabledInputs = list(
+    rows = c("car1", "car2"),
+    columns = "Price",
+    cells = list(car1 = list(Price = FALSE), car3 = "Price")
+  )
+)
+
+# In a Shiny server: replace rules, including for off-page inputs
+updateReactable("cars", disabledInputs = list(rows = "car2"))
+updateReactable("cars", disabledInputs = list())  # Clear rules and per-input overrides
+
+# Mounted cells: explicit overrides can enable a cell in a disabled row or column
+updateReactableInput(session, "cars_car1_Price", disabled = TRUE)
+updateReactableInput(session, "cars_car1_Price", disabled = FALSE)
+session$sendInputMessage("cars_car1_Price", list(value = 20, disabled = TRUE))
+```
+
+Rules use stable row keys, not visual row positions. Cell booleans override row and column defaults.
+ID-based commands override those rules and persist after pagination, virtual scrolling and data replacement.
+Replacing `disabledInputs` clears per-ID overrides; column defaults remain.
+`NULL` leaves rules unchanged. Rules for keys not currently present apply if those keys appear in later data.
+
+Disabling cancels an unsent draft and restores confirmed data without submitting it.
+Already pending edits can finish, but the input stays disabled. Native server value updates still work.
+Disabled controls do not replace server-side authorization or validation.
+
+The standard Shiny `update*Input()` functions keep their original signatures and generally have no `disabled` argument.
+Use `updateReactableInput()` or `sendInputMessage()` instead; module sessions namespace their input IDs normally.
+With shinyjs loaded in your application, `shinyjs::disable("cars_car1_Price")` and `shinyjs::enable(...)` are also
+supported through native DOM attribute observation. shinyjs is not a reactable dependency.
+Commands by ID, including shinyjs, require the input to be mounted; use table rules to target off-page cells.
+An external enable command cannot unlock an input while its server validation is pending.
+
+### Input IDs and updates
+
+Default input IDs are `<outputId>_<rowKey>_<columnId>`, for example `cars_car1_Price`.
+Row keys and column names are URL-encoded in IDs. Set `reactable(inputIdPrefix = "custom")` to change the prefix.
+Use `colDef(inputId = function(rowId, columnId) ...)` to override specific IDs, returning `NULL` for the default.
+Overrides are evaluated for the initial rows; new rows use default IDs. Shiny module namespaces are applied automatically.
+Individual values are also available as `input$cars_car1_Price` and can be observed with `observeEvent()`.
+Initial native binding sends input values but does not create an edit; use `ignoreInit = TRUE` where appropriate.
+
+Native updater functions such as `updateNumericInput(session, "cars_car1_Price", value = 20)` work while the cell is mounted.
+Outside a pending edit, a server-updated value also updates the table's data, but the application must update its own
+authoritative data separately. During a pending edit, an updater does not replace the required explicit confirmation.
+Widgets outside the displayed page or virtual viewport cannot receive these messages; use `updateReactable(data = ...)`
+to replace off-page data. Replacing data cancels pending edits and discards drafts; late confirmations are ignored.
+
+Text and numeric inputs submit on blur, Tab (by leaving the input), or Enter.
+Textareas use blur, Tab, or Ctrl/Cmd+Enter; Enter alone inserts a newline.
+Select and checkbox inputs submit immediately. Dates submit on blur, Enter, or calendar selection.
+Typed dates must match the editor's displayed date format.
+Escape restores the confirmed value without creating an edit.
+Drafts, pending edits and errors survive pagination and virtual scrolling.
+Sorting, filtering, row selection and expansion continue to use confirmed data.
+Editing requires a Shiny output, a unique nonmissing row key, and client-side data processing;
+`server = TRUE` and pre-nested `.subRows` data are not supported.
+
+### Rich cell and header tooltips
+
+::: {.callout}
+New in v0.4.5.9000
+:::
+
+Use `tooltip` and `headerTooltip` in `colDef()` for ordinary cells, native editable inputs and headers.
+Plain text is escaped automatically. Use `reactableTooltip()` with trusted htmltools tags for formatted content,
+placement (`"top"`, `"bottom"`, `"left"`, `"right"`), width and CSS class options.
+These tooltips also work outside Shiny on ordinary cells.
+
+```{r}
+cars <- MASS::Cars93[1:5, c("Manufacturer", "Model", "Price")]
+cars$id <- paste0("car", seq_len(nrow(cars)))
+reactable(
+  cars, rowId = "id",
+  columns = list(
+    id = colDef(show = FALSE),
+    Model = colDef(tooltip = function(value) paste("Model:", value)),
+    Price = colDef(
+      headerTooltip = reactableTooltip(htmltools::tags$b("Price in thousands of US dollars")),
+      tooltip = reactableTooltip(
+        htmltools::tagList(htmltools::tags$b("Price"), htmltools::tags$br(), "Original list price"),
+        placement = "right", maxWidth = 240, class = "price-help"
+      )
+    )
+  ),
+  tooltips = list(
+    rows = list(car2 = "Information about this vehicle"),
+    cells = list(car1 = list(Price = "Information about this particular price"))
+  )
+)
+```
+
+Rules use stable row keys and named column IDs, not visible row positions.
+Priority is per-input override, cell, row, table column, then `colDef()` defaults.
+Header rules are independent. `FALSE` explicitly suppresses help, even when a broader rule provides content.
+Rules for keys not yet present apply when those rows are added. Row/cell rules require `rowId`.
+Column tooltip functions run once in R at construction, not after edits or new rows;
+their results follow stable keys when `rowId` is supplied.
+
+In Shiny, update help without replacing data or resetting table state:
+
+```{r eval=FALSE}
+updateReactable("cars", tooltips = list(
+  columns = list(Price = "Common price help"),
+  cells = list(car1 = list(Price = reactableTooltip(htmltools::tags$em("Specific help")))),
+  headers = list(Price = "Updated price header"),
+  rows = list(car2 = FALSE)
+))
+updateReactableTooltip(session, "cars_car1_Price", "Highest-priority input help")
+updateReactableTooltip(session, "cars_car1_Price", FALSE)  # Hide help for this input
+updateReactable("cars", tooltips = list())  # Clear table rules and input overrides
+```
+
+`updateReactableTooltip()` requires a mounted native editor and uses the same module-local IDs as Shiny's native
+`update*Input()` functions. Its override follows the stable cell across remounts and full data replacement.
+Replacing `tooltips` clears per-input overrides; replacing only data preserves rules and overrides.
+`NULL` leaves rules unchanged during an update. Empty rules retain `colDef()` defaults.
+
+Tooltips open on hover or keyboard focus, remain hoverable, and close with Escape.
+Disabled inputs have a focusable container so their help is still reachable.
+For an editor with an open tooltip, the first Escape closes help; a second Escape cancels the unsent draft.
+Native validation/error descriptions remain associated with the input alongside tooltip help.
+Portals avoid clipping by table containers, and tooltips reposition during scrolling or resizing.
+They close when their row unmounts. Hidden/off-page cells do not create tooltip popups.
+Grouped summary cells do not receive leaf-cell tooltip rules.
+
+Content must be noninteractive: no links, buttons, inputs, scripts or htmlwidgets.
+Use a popover or row details for interactive content instead. Only pass trusted HTML;
+this feature is not an HTML sanitizer. Do not insert user-supplied HTML.
+
+Style `.rt-tooltip` or the class supplied to `reactableTooltip()`. CSS custom properties
+`--rt-tooltip-background` and `--rt-tooltip-color` control colors.
+Because the popup is rendered under the document body, put these properties on `:root` or the popup's own class,
+not only on a table ancestor.
+
+### Adding and removing rows
+
+::: {.callout}
+New in v0.4.5.9000
+:::
+
+Enable the controls independently with `rowActions`. `removeDisabled` contains stable row keys, not row positions.
+This also works without editable columns. The following example runs inside a Shiny server:
+
+```{r eval=FALSE}
+cars <- MASS::Cars93[1:5, c("Manufacturer", "Price")]
+cars$Manufacturer <- as.character(cars$Manufacturer)
+cars$id <- paste0("car", seq_len(nrow(cars)))
+saved <- reactiveVal(cars)
+nextKey <- nrow(cars)
+
+output$cars <- renderReactable({
+  reactable(
+    cars, rowId = "id",
+    rowActions = list(add = TRUE, remove = TRUE, removeDisabled = "car1"),
+    columns = list(
+      id = colDef(show = FALSE),
+      Manufacturer = colDef(editable = TRUE),
+      Price = colDef(editable = TRUE, editor = "number")
+    )
+  )
+})
+
+observeEvent(getReactableRowAction("cars"), {
+  action <- getReactableRowAction("cars")
+  current <- saved()
+  if (identical(action$action, "add")) {
+    nextKey <<- nextKey + 1L
+    row <- data.frame(Manufacturer = "New", Price = 0, id = paste0("car", nextKey))
+    # Check permissions and persist successfully before replying.
+    saved(rbind(current, row))
+    addReactableRow("cars", row, requestId = action$requestId)
+    # Optional: inputIds = c(Price = paste0("new_price_", row$id))
+  } else if (identical(action$action, "remove")) {
+    if (!action$rowId %in% current$id || identical(action$rowId, "car1")) {
+      showNotification("Removal not permitted", type = "error")
+      updateReactable("cars", data = current)
+      return()
+    }
+    saved(current[current$id != action$rowId, , drop = FALSE])
+  }
+}, ignoreInit = TRUE)
+```
+
+Handle edits separately using `getReactableEdit()` and `resolveReactableEdit()`, updating the same authoritative data.
+The package does not provide authorization or persistent storage. Do not trust browser event payloads as permissions.
+
+Add publishes a request; the server supplies a complete one-row data frame and generates its unique key.
+Reply with `addReactableRow(..., requestId = action$requestId, error = "Try again")` if creation fails.
+Omit `requestId` for a server-initiated append. New inputs receive default IDs unless overridden with `inputIds`;
+module namespaces are applied automatically. IDs must remain unique.
+
+Added rows remain in a separate bottom section on every page, even when excluded by sorting, filtering or grouping.
+They do not consume regular pagination slots. Selection and CSV export include them.
+Pagination counts exclude appended rows; JavaScript `pageRows` includes visible appended rows, and `sortedData`
+includes them at the end. R row names are carried over from the one-row frame.
+In virtual mode this section is sticky and scrollable when necessary.
+Use `updateReactable("cars", data = saved())` to integrate them into the regular table.
+Full replacement discards drafts and invalidates outstanding add/edit requests, so late replies are ignored.
+It also clears per-addition `inputIds` overrides; new rows then use the table's usual input ID rules.
+
+Removal asks for browser confirmation, then removes immediately and notifies the server; it does not wait for approval.
+The server must validate permissions and persist deletion, or restore authoritative data with `updateReactable()`.
+Surviving rows keep their selection, expansion and cell editing state.
+`updateReactable("cars", rowActions = list(remove = TRUE))` replaces control settings.
+An empty list hides both controls without deleting appended rows.
+
+Row actions require Shiny, stable row keys, client-side processing, and no `.subRows` or Crosstalk data.
+Customize labels and confirmation text with the `rowAdd`, `rowRemoveLabel`, `rowRemoveConfirm`, and other row options
+in `reactableLang()`. Style controls using `.rt-row-add`, `.rt-row-remove`, and `.rt-row-action-cell`.
+
+R-rendered cells, details and per-row styles stay associated with their original stable keys after removal.
+New rows use raw cell values instead of precomputed R cell content, and have no precomputed R details.
+JavaScript renderers still run for new rows. Rebuild the widget to calculate new R-rendered content when needed.
+
 ## Footers
 
 You can add column footers using the `footer` argument in `colDef()`.

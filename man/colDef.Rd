@@ -39,7 +39,17 @@ colDef(
   headerClass = NULL,
   headerStyle = NULL,
   footerClass = NULL,
-  footerStyle = NULL
+  footerStyle = NULL,
+  editable = FALSE,
+  editor = "text",
+  editorOptions = NULL,
+  inputId = NULL,
+  editValidation = TRUE,
+  editStatus = "icon",
+  editStatusDuration = 2000,
+  inputDisabled = FALSE,
+  tooltip = NULL,
+  headerTooltip = NULL
 )
 }
 \arguments{
@@ -180,6 +190,39 @@ Note that if \code{headerStyle} is a named list, property names should be camelC
 character string.
 
 Note that if \code{footerStyle} is a named list, property names should be camelCased.}
+
+\item{editable}{Show a native Shiny input in this column? Requires \code{rowId} in \code{\link[=reactable]{reactable()}}.
+Cannot be combined with \code{cell}. Only leaf data cells are editable.}
+
+\item{editor}{Input type: \code{"text"}, \code{"number"}, \code{"select"}, \code{"checkbox"}, \code{"date"}, or \code{"textarea"}.}
+
+\item{editorOptions}{Named list of arguments for the corresponding Shiny input constructor.
+For \code{"select"}, supply \code{choices}; selects are single-choice and do not use selectize.
+IDs, labels, values, and commit timing are managed by reactable.}
+
+\item{inputId}{Custom input ID, or a function of the stable row key and column ID that returns an ID.
+Return \code{NULL} to use the default ID. Overrides are evaluated for the initial rows.
+IDs are automatically namespaced in Shiny modules.}
+
+\item{editValidation}{Require explicit server acceptance of submitted edits? Defaults to \code{TRUE}.
+With \code{FALSE}, valid submissions update the browser table immediately and still notify Shiny,
+but show no server-validation success indicator. The application remains responsible for persistence.}
+
+\item{editStatus}{Visual status display: \code{"icon"} (default), \code{"text"}, or \code{"none"}.
+Accessible announcements and error messages remain available in all modes.
+Status colors and positioning can be customized with CSS.}
+
+\item{editStatusDuration}{Duration of the accepted status in milliseconds. Defaults to \code{2000}.
+Use \code{0} to keep it until the next input. Previous success and errors clear as soon as typing resumes.}
+
+\item{inputDisabled}{Disable this column's native inputs? Defaults to \code{FALSE}.
+Cell rules in \code{reactable(disabledInputs = ...)} and per-input commands can override this default.}
+
+\item{tooltip}{Cell tooltip text, trusted HTML, \code{\link[=reactableTooltip]{reactableTooltip()}}, or \code{FALSE}.
+Can also be an R function of cell value, row index and column name. Evaluated at construction;
+use \code{rowId} to associate results with stable keys. New rows use the column default, not computed results.}
+
+\item{headerTooltip}{Header tooltip text, trusted HTML, \code{\link[=reactableTooltip]{reactableTooltip()}}, or \code{FALSE}.}
 }
 \value{
 A column definition object that can be used to customize columns

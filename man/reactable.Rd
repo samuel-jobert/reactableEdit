@@ -56,7 +56,12 @@ reactable(
   elementId = NULL,
   static = getOption("reactable.static", FALSE),
   server = FALSE,
-  selectionId = NULL
+  selectionId = NULL,
+  rowId = NULL,
+  inputIdPrefix = NULL,
+  disabledInputs = NULL,
+  rowActions = NULL,
+  tooltips = NULL
 )
 }
 \arguments{
@@ -231,6 +236,34 @@ Server-side data processing is currently \strong{experimental}.}
 
 \item{selectionId}{\strong{Deprecated}. Use \code{\link[=getReactableState]{getReactableState()}} to get the selected rows
 in Shiny.}
+
+\item{rowId}{Name of a column containing unique, nonmissing character or safe integer row keys.
+Required for editable columns. This column cannot itself be editable.
+Editing requires Shiny and is not supported with \code{server = TRUE} or \code{.subRows} data.}
+
+\item{inputIdPrefix}{Prefix for editable input IDs. Defaults to the Shiny output ID.
+Default IDs are \verb{<prefix>_<rowKey>_<columnId>}, with row and column components URL-encoded.
+Custom prefixes are automatically namespaced in Shiny modules.}
+
+\item{disabledInputs}{Rules for disabling native inputs. A list with \code{rows} (stable character row keys),
+\code{columns} (column IDs), and/or \code{cells} (a named list indexed by row key).
+Each \code{cells} entry is a character vector of disabled column IDs, or named logical values.
+For example, \code{list(rows = "car1", cells = list(car1 = list(Price = FALSE)))}
+disables a row except its Price input. Cell rules override row rules and \code{colDef(inputDisabled = TRUE)}.
+Per-input messages and external DOM changes such as \code{shinyjs::disable()} override these rules
+and persist across pagination and virtual scrolling. Only mounted inputs can receive ID-based commands.
+Disabling discards unsent drafts; already pending edits can finish without enabling the input.
+These rules do not provide authorization or server validation.}
+
+\item{rowActions}{Optional row controls: \code{list(add = TRUE, remove = TRUE)}.
+\code{removeDisabled} specifies stable character row keys whose removal buttons are disabled.
+Removal is immediate after confirmation and notifies Shiny. Addition requests a row from the server.
+See \code{\link[=getReactableRowAction]{getReactableRowAction()}} and \code{\link[=addReactableRow]{addReactableRow()}}. Added rows remain at the bottom, outside
+sorting and filtering, until full data replacement. Requires \code{rowId} and a client-side Shiny table
+without \code{.subRows} or Crosstalk data.}
+
+\item{tooltips}{Tooltip rules for rows, columns, cells and headers. See \code{\link[=reactableTooltip]{reactableTooltip()}}.
+Rules use stable \code{rowId} keys and persist across data replacement. Cell rules override rows, then columns.}
 }
 \value{
 A \code{reactable} HTML widget that can be used in R Markdown documents
