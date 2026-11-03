@@ -4,6 +4,10 @@
 
 * Renamed the R package to `reactableEdit`, an independent fork of Greg Lin's `reactable`, maintained by Samuel JOBERT under the MIT license. Load it with `library(reactableEdit)`; existing R function names, widget bindings, JavaScript APIs, and `reactable.*` options are unchanged. Original authors, copyright notices, and third-party licenses are retained. Earlier release sections below describe upstream reactable history.
 
+## Documentation
+
+* Added a comprehensive editing guide covering native Shiny inputs, stable and custom IDs, modules, individual observers, native updaters, explicit server validation, disabled rules, row actions, rich tooltips, persistence and troubleshooting, with a complete runnable Shiny application.
+
 ## New features
 
 * Native Shiny cell editing with `colDef(editable = TRUE)`, six input types (`text`, `number`, `select`, `checkbox`, `date`, and `textarea`), stable row keys via `reactable(rowId = ...)`, customizable input IDs, and explicit server acceptance or rejection via `getReactableEdit()` and `resolveReactableEdit()`. Accepted edits display a customizable status (`editStatus`), with a green tick for 2 seconds by default (`editStatusDuration`). Previous success and errors clear on new input. Columns can opt out of server validation with `editValidation = FALSE` without displaying a validation tick. Native `input[[id]]` observers and `update*Input()` functions work for mounted cells. Editing preserves table state and is initially limited to client-side Shiny tables without `.subRows` data.

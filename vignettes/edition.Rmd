@@ -1,0 +1,1027 @@
+---
+title: "Guide to Editing and Shiny Inputs"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+---
+
+```{r setup, include=FALSE, purl=FALSE}
+knitr::opts_chunk$set(eval = FALSE, purl = FALSE)
+```
+
+::: {.callout}
+New in v0.4.5.9000
+:::
+
+This guide describes the **reactableEdit** extensions: native editing, server-side validation, individual IDs,
+observers, updates, disabling inputs, row actions, and tooltips. The code snippets are intended for a Shiny
+application; a complete example that runs without requiring you to invent business logic appears at the end.
+
+Load `library(reactableEdit)`, not `library(reactable)`. Function names retain their original names.
+Do not load both packages or mix their widgets in the same HTML document.
+
+## 1. Overview: Which API should you use?
+
+| Need | API |
+|:--|:--|
+| Need | API |
+|:--|:--|
+| Build the table | `reactable()`, `reactableOutput()`, `renderReactable()` |
+| Configure a column input | `colDef(editable, editor, editorOptions, inputId, ...)` |
+| Read a specific cell | `input[[id]]`, `observeEvent(input[[id]], ...)` |
+| Handle all submissions | `getReactableEdit(outputId)` |
+| Accept, normalize, or reject | `resolveReactableEdit(outputId, edit, ...)` |
+| Change a mounted input's value or options | The Shiny `update*Input()` function for its type |
+| Disable a mounted input | `updateReactableInput(session, inputId, disabled)` |
+| Disable cells, including off-page cells | `disabledInputs` in `reactable()` or `updateReactable()` |
+| Request add/remove controls | `rowActions` in `reactable()` or `updateReactable()` |
+| Observe a row action | `getReactableRowAction(outputId)` |
+| Provide a new row or reject its creation | `addReactableRow(outputId, ...)` |
+| Create a rich tooltip | `reactableTooltip(content, ...)` |
+| Add a column or header tooltip | `colDef(tooltip, headerTooltip)` |
+| Add a row, cell, or header tooltip | `tooltips` in `reactable()` or `updateReactable()` |
+| Update a mounted input's tooltip | `updateReactableTooltip(session, inputId, tooltip)` |
+| Translate labels and announcements | `reactableLang()` |
+| Read the page, sorting, or selection | `getReactableState()` |
+
+### Three states to distinguish
+
+1. **Server data**: your source of truth, such as a `reactiveVal()`, file, or database.
+2. **Confirmed browser data**: used by the table and updated after acceptance.
+3. **Input draft**: the value being entered, not yet saved and not necessarily valid.
+
+A Shiny input is not a database. Reading `input[[id]]` does not mean that its value has been accepted.
+With server-side validation, save the value first, then call `resolveReactableEdit()`.
+
+## 2. Build an editable table
+
+### Shiny output and stable keys
+
+```{r, purl=FALSE}
+library(shiny)
+library(reactableEdit)
+
+cars <- MASS::Cars93[1:6, c("Manufacturer", "Model", "Type", "Price")]
+cars$id <- paste0("car", seq_len(nrow(cars)))
+cars$Manufacturer <- as.character(cars$Manufacturer)
+cars$Model <- as.character(cars$Model)
+cars$Type <- as.character(cars$Type)
+cars$Available <- TRUE
+cars$CheckedOn <- as.Date("2026-01-01")
+cars$Notes <- ""
+
+# In the UI:
+reactableOutput("cars")
+
+# In the server:
+output$cars <- renderReactable({
+  reactable(
+    cars,
+    rowId = "id",
+    columns = list(
+      id = colDef(show = FALSE),
+      Manufacturer = colDef(editable = TRUE),
+      Price = colDef(editable = TRUE, editor = "number")
+    )
+  )
+})
+```
+
+`rowId` refers to a **data column**, not a displayed row number. Keys must be unique and non-missing: strings or
+integers exactly representable in JavaScript, between `-(2^53 - 1)` and `2^53 - 1`.
+Prefer simple keys such as `"car1"` or a database ID.
+
+The key column can be hidden, but it cannot be editable. Do not regenerate its values after sorting, deleting, or
+paginating. A row edit must always be looked up by its key.
+
+`reactableOutput()` creates the Shiny HTML output. `renderReactable()` supplies its contents. `reactable()` builds
+the table definition; its new parameters are `rowId`, `inputIdPrefix`, `disabledInputs`, `rowActions`, and `tooltips`.
+
+### Editing parameters for `colDef()`
+
+| Parameter | Default | Description |
+|:--|:--|:--|
+| `editable` | `FALSE` | Displays a real Shiny input that is always visible |
+| `editor` | `"text"` | Selects one of the six editors |
+| `editorOptions` | `NULL` | Options for the corresponding Shiny constructor |
+| `inputId` | `NULL` | A specific ID or a function of the row key and column name |
+| `editValidation` | `TRUE` | Waits for server acceptance or rejection |
+| `editStatus` | `"icon"` | `"icon"`, `"text"`, or `"none"` indicator |
+| `editStatusDuration` | `2000` | Success duration in milliseconds; `0` keeps it until the next edit |
+| `inputDisabled` | `FALSE` | Disables the column's inputs by default |
+| `tooltip` | `NULL` | A cell tooltip, fixed or calculated at construction |
+| `headerTooltip` | `NULL` | A header tooltip |
+
+These parameters can be shared through `defaultColDef`. Note: `defaultColDef = colDef(editable = TRUE)` also makes
+the key editable unless its column explicitly sets `editable = FALSE`.
+A native editor cannot be combined with a `cell` renderer on the same column.
+
+### The six input types
+
+| `editor` | Shiny constructor | Expected data | Example options |
+|:--|:--|:--|:--|
+| `"text"` | `textInput()` | Text or compatible scalar values | `placeholder`, `width` |
+| `"number"` | `numericInput()` | Finite numbers or missing values | `min`, `max`, `step`, `width` |
+| `"select"` | `selectInput()` | Values present in the choices | `choices`, `width` |
+| `"checkbox"` | `checkboxInput()` | Non-missing logical values | `width` |
+| `"date"` | `dateInput()` | `Date` or ISO `YYYY-MM-DD` strings | `min`, `max`, `format`, `language`, `weekstart` |
+| `"textarea"` | `textAreaInput()` | Text or compatible scalar values | `rows`, `cols`, `placeholder`, `resize` |
+
+```{r, purl=FALSE}
+columns <- list(
+  id = colDef(show = FALSE),
+  Manufacturer = colDef(
+    editable = TRUE, editor = "text", editorOptions = list(placeholder = "Manufacturer")
+  ),
+  Type = colDef(
+    editable = TRUE, editor = "select", editorOptions = list(choices = unique(cars$Type))
+  ),
+  Price = colDef(
+    editable = TRUE, editor = "number", editorOptions = list(min = 0, step = 0.01)
+  ),
+  Available = colDef(editable = TRUE, editor = "checkbox"),
+  CheckedOn = colDef(
+    editable = TRUE, editor = "date", editorOptions = list(language = "en", format = "mm/dd/yyyy")
+  ),
+  Notes = colDef(editable = TRUE, editor = "textarea", editorOptions = list(rows = 2))
+)
+```
+
+`editorOptions` uses the arguments of the constructor, **not** those of an `update*Input()` function.
+`inputId`, `label`, `value`, `selected`, `multiple`, `selectize`, and `updateOn` are managed by the package and
+cannot be supplied here. The select is native, single-choice, and does not use Selectize; `choices` is required.
+
+HTML constraints such as `min` can help with data entry, but never replace server-side checks.
+An empty value from a number or date editor can be represented as `NULL` in the global protocol.
+
+## 3. IDs: table, row, column, and input
+
+### Automatic format
+
+For `reactableOutput("cars")`, with the key `"car1"` and the `"Price"` column:
+
+```text
+cars_car1_Price
+```
+
+The format is `<prefix>_<encoded row key>_<encoded column name>`. The prefix defaults to the output ID.
+The row/column components are encoded with JavaScript's `encodeURIComponent`; a space becomes `%20`.
+For an ID containing special characters, use `input[[id]]`, not `$` notation.
+
+IDs are case-sensitive. The key is converted to a string. Non-editable cells do not have an individual Shiny input
+binding. Group rows are not data inputs.
+
+### Change the prefix
+
+```{r, purl=FALSE}
+reactable(cars, rowId = "id", columns = columns, inputIdPrefix = "edit")
+# The first Price cell becomes: edit_car1_Price
+```
+
+Choose different prefixes for multiple tables. All IDs on the page, including those of other Shiny widgets, must be
+unique. Collisions are reported: the package does not silently rename IDs.
+
+### Customize specific cells
+
+```{r, purl=FALSE}
+colDef(
+  editable = TRUE,
+  editor = "number",
+  inputId = function(rowId, columnId) {
+    if (rowId == "car1") "main_price" else NULL
+  }
+)
+```
+
+The function receives the stable key and column name. Returning `NULL` keeps the automatic ID.
+A constant ID such as `inputId = "main_price"` is suitable for only one cell: using it across multiple rows would
+create duplicates.
+
+Custom IDs cannot contain spaces or colons. Prefer letters, numbers, and underscores.
+R ID callbacks are evaluated for rows at construction time, not each time a row is added in the browser.
+For a new row, use `addReactableRow(inputIds = ...)` or keep the automatic ID.
+
+### Global event IDs
+
+```text
+cars__reactable__edit        edit event
+cars__reactable__row_action  add/remove event
+```
+
+Use the public helpers `getReactableEdit()` and `getReactableRowAction()` rather than reconstructing these names.
+`edit$inputId` contains the browser's actual ID, including any module namespace.
+Do not pass it directly to an updater using the module session: the session would add the namespace again.
+
+## 4. When is an edit submitted?
+
+| Editor | Submission |
+|:--|:--|
+| Text / number | Enter or blur; Tab submits and moves focus |
+| Multiline text | Ctrl+Enter / Cmd+Enter or blur; Enter alone inserts a line |
+| Select / checkbox | As soon as the value changes |
+| Date | Enter, blur, or selection in the calendar |
+
+Text is not submitted on every keystroke. An unchanged value does not create a new edit.
+Local validation occurs on submission, not while typing. A locally invalid entry may be rejected before any
+server event.
+
+Escape restores the confirmed value without creating a global edit event. The individual input may still be
+updated to reflect this restoration. If a tooltip is open, the first Escape closes it; the second has the editor's
+usual behavior.
+
+While validation is pending, the same cell cannot be submitted again.
+Text, number, and textarea editors are read-only; the other editors are temporarily disabled.
+Drafts and errors follow the cell key when changing pages or when virtualized rows are remounted.
+
+## 5. `input[[id]]` and `observeEvent()`
+
+### Observe a specific cell
+
+```{r, purl=FALSE}
+observeEvent(input$cars_car1_Price, {
+  value <- input$cars_car1_Price
+  message("Native value received: ", value)
+}, ignoreInit = TRUE)
+
+id <- "cars_car1_Price"
+observeEvent(input[[id]], {
+  message("Targeted input: ", id, " = ", input[[id]])
+}, ignoreInit = TRUE)
+```
+
+`ignoreInit = TRUE` prevents the observer from running when it is created. It does not guarantee that an initial
+value sent later, when an input is mounted or remounted, will be ignored.
+`ignoreNULL = FALSE` allows you to process null values if your logic requires it.
+
+A mounted input publishes its initial value. It may also publish after a submission, an Escape restoration, or a
+server update. Remounting may restore a value that was already known.
+Native functions retain their Shiny types: notably, logical for checkboxes and `Date` for dates.
+
+**An individual observer is therefore not a reliable detector of an accepted user change.**
+Use it for display or related calculations. To validate and save edits, prefer the global event, which carries the
+row key, column, and submission ID. Do not save the same edit twice using both observers.
+
+### Observe several known IDs
+
+```{r, purl=FALSE}
+observers <- lapply(c("cars_car1_Price", "cars_car2_Price"), function(id) {
+  force(id)
+  observeEvent(input[[id]], {
+    message(id, " : ", input[[id]])
+  }, ignoreInit = TRUE)
+})
+
+session$onSessionEnded(function() {
+  lapply(observers, function(observer) observer$destroy())
+})
+```
+
+Each observer must capture its own ID. For dynamically added rows, create the observer when the key is known and
+destroy it when the row is removed. Avoid recreating all observers on every edit. The global protocol avoids this
+problem entirely and also covers new rows.
+
+## 6. Server-side validation and saving
+
+### `getReactableEdit()`
+
+```r
+getReactableEdit(outputId, session = NULL)
+```
+
+Reactively returns `NULL` before the first submission, then the most recently received edit:
+
+| Field | Meaning |
+|:--|:--|
+| `editId` | Unique ID for this submission |
+| `inputId` | Full browser input ID |
+| `rowId` | Stable row key as a string |
+| `columnId` | Column name |
+| `oldValue` | Value confirmed in the browser before submission |
+| `value` | Proposed value; dates are ISO strings |
+
+`oldValue` describes the browser, not necessarily the current state of your database.
+For multiple users, also check permissions and conflicts with server data.
+The helper exposes the latest edit, not a history; maintain your own log if needed.
+
+```{r, purl=FALSE}
+observeEvent(getReactableEdit("cars"), {
+  edit <- getReactableEdit("cars")
+  # Validate, save, then respond. See the complete example at the end of the guide.
+}, ignoreInit = TRUE)
+```
+
+### `resolveReactableEdit()`
+
+```r
+resolveReactableEdit(
+  outputId, edit, value = edit$value, error = NULL, session = NULL
+)
+```
+
+```{r, purl=FALSE}
+resolveReactableEdit("cars", edit)                       # Accept the submitted value
+resolveReactableEdit("cars", edit, value = 25.50)         # Accept a normalized value
+resolveReactableEdit("cars", edit, error = "Price rejected") # Reject
+resolveReactableEdit("cars", edit, value = NULL)          # Accept a missing number/date
+```
+
+The response must include the `edit` object for the relevant submission. The browser correlates the response with
+`editId`, `inputId`, row, and column; a stale response cannot accept another edit.
+Acceptance updates the browser's confirmed data and displays the configured success indicator.
+Rejection keeps the confirmed value, leaves the proposed value available for correction, and displays the error.
+
+`value` must be a valid JSON scalar: text, finite number, logical, `Date`, or `NULL`.
+Do not use `NA`, `NaN`, `Inf`, a vector, or a list as an accepted value.
+`error` must be non-empty text; with `error = NULL`, the value is accepted.
+
+**Every submission with validation enabled requires a response.** Without a call to `resolveReactableEdit()`, the
+cell remains pending. An `updateNumericInput()` is not an acceptance.
+If saving fails, report the failure explicitly; do not show success for a write that did not happen.
+Asynchronous operations must retain the original `edit` object until they respond.
+
+### Avoid rebuilding the table on every save
+
+```{r, purl=FALSE}
+saved <- reactiveVal(cars)
+tbl <- reactable(cars, rowId = "id", columns = columns)
+output$cars <- renderReactable(tbl)
+output$saved <- renderTable(saved())
+```
+
+In the global observer, update `saved()`, then respond with `resolveReactableEdit()`.
+Avoid `renderReactable(reactable(saved(), ...))` for this workflow: each save rebuilds the widget, clears drafts,
+and may invalidate pending requests.
+
+### `editValidation = FALSE`
+
+```{r, purl=FALSE}
+colDef(editable = TRUE, editor = "textarea", editValidation = FALSE)
+```
+
+The submission is applied immediately to the browser data. The native input and global event are still sent to
+Shiny, but resolutions are ignored and no server-validation checkmark is shown.
+This does not save anything automatically.
+
+Reserve this mode for a local application or a field whose processing does not require this protocol.
+To reject a value applied locally, the application must send a corrective value itself or replace the data.
+This is not equivalent to server-side validation.
+
+## 7. Native server-side `update*Input()` functions
+
+### Which function for which editor?
+
+The following snippets assume that the cells are mounted and use the columns from section 2:
+
+```{r, purl=FALSE}
+updateTextInput(session, "cars_car1_Manufacturer", value = "Acura")
+updateNumericInput(session, "cars_car1_Price", value = 25, min = 0, max = 100, step = 0.5)
+updateSelectInput(session, "cars_car1_Type", choices = unique(cars$Type), selected = cars$Type[1])
+updateCheckboxInput(session, "cars_car1_Available", value = FALSE)
+updateDateInput(session, "cars_car1_CheckedOn", value = as.Date("2026-02-01"))
+updateTextAreaInput(session, "cars_car1_Notes", value = "Updated note")
+
+# Change an option without changing the value:
+updateTextInput(session, "cars_car1_Manufacturer", placeholder = "Expected name")
+```
+
+The native function signatures are unchanged. Use `selected`, not `value`, for `updateSelectInput()`.
+Available options depend on the function and Shiny version.
+`updateSelectizeInput()` and updaters for unlisted widgets do not target these native editors.
+
+A server-side value update republishes the individual input and, unless an edit is pending, also updates the
+table data in the browser. It **does not create a global edit event** or an acceptance checkmark.
+Update your server-side source in the same operation to keep it consistent.
+
+Changing the choices for a select does not automatically change your server-side business rules.
+A selected value changed by the updater remains a server update, not a user edit.
+While a request is pending, prefer `resolveReactableEdit(value = ...)` over sending two competing commands.
+
+### Mounted cell or off-page?
+
+An input is mounted when it exists in the DOM: pagination, filtering, collapsing a group, and virtualization can
+remove it. ID-based commands are not persistently queued for an absent input.
+An old value in `input[[id]]` does not prove that the input is still mounted.
+
+To change off-page **values**, update the server-side source and then use `updateReactable(data = ...)`.
+For off-page disabling and tooltips, use the table rules `disabledInputs` and `tooltips`.
+A native option changed by ID, such as choices or a placeholder, is not a new column definition and does not
+benefit from the special persistence for disabled and tooltip overrides.
+
+## 8. Disable and re-enable inputs
+
+### Column, row, and cell
+
+```{r, purl=FALSE}
+colDef(editable = TRUE, editor = "checkbox", inputDisabled = TRUE)
+
+rules <- list(
+  rows = c("car1", "car2"),
+  columns = "Price",
+  cells = list(
+    car1 = list(Price = FALSE), # Exception: allow this price
+    car3 = c("Notes", "Type")   # Disable these cells
+  )
+)
+reactable(cars, rowId = "id", columns = columns, disabledInputs = rules)
+updateReactable("cars", disabledInputs = rules)
+```
+
+Priority order:
+
+1. Individual command by ID or external change to the `disabled` attribute.
+2. Cell rule `TRUE` or `FALSE`.
+3. Row, column, or `colDef(inputDisabled = TRUE)` disabling: any one is sufficient.
+
+`FALSE` for a cell is a true exception that enables it. Rules use stable keys, not positions.
+They can target off-page cells or a key that will be added later.
+
+### `updateReactableInput()`
+
+```r
+updateReactableInput(
+  session = shiny::getDefaultReactiveDomain(), inputId, disabled = TRUE
+)
+```
+
+```{r, purl=FALSE}
+updateReactableInput(session, "cars_car1_Price")                   # Disable
+updateReactableInput(session, "cars_car1_Price", disabled = FALSE) # Re-enable
+
+session$sendInputMessage("cars_car1_Price", list(value = 35, disabled = TRUE))
+```
+
+This helper does not change the value. It targets a mounted input, and its override persists after remounting and
+replacing only the data. A server can change the value of a disabled input.
+Native `update*Input()` functions **do not gain** a `disabled` argument: use this helper or a message.
+
+### Reset rules and overrides
+
+```{r, purl=FALSE}
+updateReactable("cars", disabledInputs = NULL)   # Leave unchanged
+updateReactable("cars", disabledInputs = list()) # Clear rules and ID overrides
+```
+
+Each non-NULL list **replaces** the previous rules and clears individual overrides.
+`colDef(inputDisabled = TRUE)` defaults remain: clearing the rules does not necessarily make everything editable.
+Keep your rule list on the server if you want to change only one entry.
+
+Disabling cancels an unsubmitted draft and restores the confirmed value without a global submission.
+An edit that is already pending may complete, but its response does not re-enable the field.
+
+### With shinyjs
+
+```{r, purl=FALSE}
+# In the UI:
+shinyjs::useShinyjs()
+
+# In the server, for a mounted cell:
+shinyjs::disable("cars_car1_Price")
+shinyjs::enable("cars_car1_Price")
+```
+
+The application must install/load shinyjs; it is not a required package dependency.
+Changes to the `disabled` attribute are detected and retained per cell.
+For a module, use local IDs with Shiny/shinyjs namespace mechanisms.
+
+**Disabling an interface is not authorization.** Always check permissions on the server.
+
+## 9. Indicators, errors, and localization
+
+```{r, purl=FALSE}
+colDef(editable = TRUE, editStatus = "icon", editStatusDuration = 2000)
+colDef(editable = TRUE, editStatus = "text", editStatusDuration = 5000)
+colDef(editable = TRUE, editStatus = "none")
+```
+
+By default, a neutral indicator appears while pending, a small green checkmark appears in the top-right corner for
+two seconds after acceptance, and an error appears below the field after rejection. Previous success and error
+messages disappear as soon as a new edit begins.
+The success timer starts at acceptance, not when the cell is remounted.
+`editStatus = "none"` hides indicators, but not error messages or accessible announcements.
+
+```{r, purl=FALSE}
+language <- reactableLang(
+  editLabel = "Edit {name}, row {rowId}",
+  editPending = "Checking...",
+  editSaved = "Saved",
+  editUnavailable = "Editing is only available in Shiny",
+  editInvalidDate = "Enter a valid date",
+  rowAdd = "Add row",
+  rowRemove = "-",
+  rowRemoveLabel = "Remove row {rowId}",
+  rowRemoveConfirm = "Remove row {rowId}?",
+  rowAddPending = "Preparing row...",
+  rowAdded = "Row added",
+  rowRemoved = "Row removed",
+  rowAddedLabel = "Added rows"
+)
+reactable(cars, rowId = "id", columns = columns, language = language)
+```
+
+Editor CSS variables: `--rt-edit-success-color`, `--rt-edit-error-color`, `--rt-edit-pending-color`,
+`--rt-edit-indicator-top`, `--rt-edit-indicator-right`.
+Indicator classes: `.rt-cell-editor-indicator-saved`, `.rt-cell-editor-indicator-pending`,
+`.rt-cell-editor-indicator-error`.
+
+```css
+.rt-cell-editor {
+  --rt-edit-success-color: #16733c;
+  --rt-edit-indicator-top: 3px;
+  --rt-edit-indicator-right: 4px;
+}
+```
+
+Preserve accessible labels, contrast, and messages: color alone is not enough.
+
+## 10. Tooltips: cells, inputs, and headers
+
+### `reactableTooltip()`
+
+```r
+reactableTooltip(content, placement = "top", maxWidth = 320, class = NULL)
+```
+
+- `content`: text escaped automatically, htmltools tags, or trusted non-interactive HTML.
+- `placement`: preferred position: `"top"`, `"bottom"`, `"left"`, or `"right"`.
+- `maxWidth`: positive maximum width in CSS pixels.
+- `class`: additional CSS class on the popup.
+
+The popup changes sides when needed and stays within the viewport.
+Plain text can be used directly in a rule without calling the constructor.
+
+```{r, purl=FALSE}
+priceTooltip <- reactableTooltip(
+  tagList(tags$b("Price"), tags$br(), "Positive amount, in thousands."),
+  placement = "right",
+  maxWidth = 280,
+  class = "price-tooltip"
+)
+
+colDef(editable = TRUE, editor = "number", tooltip = priceTooltip, headerTooltip = "Vehicle price")
+colDef(tooltip = function(value, index, name) paste(name, ": initial value", value))
+```
+
+`tooltip` also works on an ordinary cell. The R callback receives the value, R row index, and column name.
+It is evaluated at construction; its results follow stable keys when `rowId` is supplied.
+It **is not recalculated after an edit or addition**. Use a rule update for a dynamic tooltip.
+For new keys, a precalculated result from an existing row is not reused.
+
+### Table rules and precedence
+
+```{r, purl=FALSE}
+tooltips <- list(
+  columns = list(Price = "Column help"),
+  rows = list(car2 = "Shared tooltip for row car2"),
+  cells = list(car1 = list(Price = priceTooltip), car3 = list(Notes = FALSE)),
+  headers = list(Price = "Price in thousands")
+)
+reactable(cars, rowId = "id", columns = columns, tooltips = tooltips)
+updateReactable("cars", tooltips = tooltips)
+```
+
+Cell precedence: **input by ID > cell > row > table column > `colDef` default**.
+`headers` does not follow row/cell rules; a header rule replaces its `headerTooltip`.
+`rows` and `cells` require `rowId`. Rules follow keys, including off-page keys or keys after data replacement.
+Aggregated group cells do not inherit rules from leaf cells.
+
+### `updateReactableTooltip()`
+
+```r
+updateReactableTooltip(session, inputId, tooltip)
+```
+
+```{r, purl=FALSE}
+updateReactableTooltip(session, "cars_car1_Price", "Higher-priority tooltip")
+updateReactableTooltip(session, "cars_car1_Price", priceTooltip)
+updateReactableTooltip(session, "cars_car1_Price", FALSE)
+```
+
+Targets a **mounted native editor**. It does not target an ordinary cell or an off-page cell; for those cases, use
+`updateReactable(tooltips = ...)`.
+The ID override follows the cell through pagination, virtualization, and data replacement.
+Removing the row clears its individual override.
+
+### Hide, replace, or reset
+
+```{r, purl=FALSE}
+updateReactable("cars", tooltips = NULL)   # Leave unchanged
+updateReactable("cars", tooltips = list()) # Clear rules and overrides, keep colDef defaults
+updateReactable("cars", tooltips = list(cells = list(car1 = list(Price = FALSE))))
+```
+
+Any non-NULL list replaces all rules and clears ID overrides.
+A `FALSE` rule explicitly hides the tooltip, even if a lower-precedence level provides one.
+`NULL` cannot hide a rule and is not accepted by `updateReactableTooltip()`; use `FALSE`.
+There is no public helper to remove only one ID override and restore inheritance; sending the table rules again
+clears all such overrides.
+
+### Accessibility and CSS
+
+Hover or keyboard focus displays the tooltip; Escape closes it. The pointer can move over the popup without closing
+it immediately.
+A disabled input gets a focusable container so its tooltip remains accessible.
+The tooltip and edit error coexist in `aria-describedby`.
+A tooltip does not replace the field's accessible name or an essential instruction displayed on the page.
+
+```css
+.price-tooltip {
+  --rt-tooltip-background: #16324f;
+  --rt-tooltip-color: #ffffff;
+  border-radius: 6px;
+}
+```
+
+The popup is placed under `document.body`, outside the table's scrollable areas.
+Define its variables on `:root`, `.rt-tooltip`, or its own class, not only on a table ancestor.
+This prevents clipping, but affects descendant CSS selectors.
+
+**Do not put links, buttons, inputs, scripts, or htmlwidgets in a tooltip.**
+The API accepts only trusted, non-interactive content; its controls are not an HTML sanitizer.
+Never pass user-provided HTML. For interactive content, use details or a popover.
+
+## 11. Add and remove rows
+
+### `rowActions`
+
+```{r, purl=FALSE}
+reactable(
+  cars, rowId = "id", columns = columns,
+  rowActions = list(add = TRUE, remove = TRUE, removeDisabled = "car1")
+)
+updateReactable("cars", rowActions = list(add = FALSE, remove = TRUE, removeDisabled = "car1"))
+updateReactable("cars", rowActions = list()) # Hide the controls
+```
+
+Enable `rowActions` at construction to use this feature; the add and remove options are independent.
+Each update replaces the options: an omitted option is not retained.
+`removeDisabled` contains **stable keys represented as strings**.
+Hiding the controls does not remove added rows or cancel a request that is already pending.
+
+### `getReactableRowAction()`
+
+```r
+getReactableRowAction(outputId, session = NULL)
+```
+
+Reactively returns `NULL`, then the most recent action:
+
+- Add: `action = "add"` and `requestId`.
+- Remove: `action = "remove"`, `requestId`, `rowId`, and `data`, the removed contents.
+
+**Add** asks the server to create a complete row and its key.
+**Remove** asks for confirmation in the browser, removes the row immediately, then notifies the server.
+Removal does not wait for server acceptance.
+
+The server must check permissions and save the deletion, or restore its authorized data with
+`updateReactable(data = ...)` if it is rejected. Do not use client-submitted contents as the source of truth for a
+deletion; look up the row on the server by its key.
+
+### `addReactableRow()`
+
+```r
+addReactableRow(
+  outputId, data = NULL, inputIds = NULL, requestId = NULL, error = NULL, session = NULL
+)
+```
+
+```{r, purl=FALSE}
+newRow <- cars[1, , drop = FALSE]
+newRow$id <- "car7" # Example: use a genuinely new key
+newRow$Price <- 0
+
+addReactableRow("cars", newRow, requestId = action$requestId)
+addReactableRow(
+  "cars", newRow, requestId = action$requestId,
+  inputIds = c(Price = "price_car7")
+)
+addReactableRow("cars", requestId = action$requestId, error = "Creation rejected")
+```
+
+The two insertion examples are alternatives, not two calls for the same key.
+`data` must be a one-row data frame or matrix with all table columns, compatible types, and a new unique key.
+Validate the values and save them on the server before insertion.
+`inputIds` is a named vector or list keyed by editable columns; other IDs remain automatic.
+ID collisions, duplicate keys, and select values outside the choices are rejected.
+
+`requestId` correlates the response with the add-button click. Without `requestId`, the server can initiate an
+addition on its own.
+An error response requires a `requestId` and cannot include `data` or `inputIds`.
+
+### Why do new rows stay at the bottom?
+
+Added rows are pinned in a separate section at the bottom of each page, outside sorting, search, filters, grouping,
+and pagination. They do not occupy slots on regular pages.
+In virtual mode, their section has its own scrolling area so it remains accessible.
+However, they are included in the exposed data and selection; they are not merely decorative.
+
+```{r, purl=FALSE}
+updateReactable("cars", data = saved())
+```
+
+This replacement integrates additions into the regular table behavior. It also cancels drafts and pending requests.
+Late responses to invalidated add requests are ignored.
+The `inputIds` overrides for additions are cleared; the usual ID rules then apply.
+
+R renderers and precalculated details for original rows remain associated with their data after deletion.
+New rows do not have precalculated R details; JavaScript renderers can handle their values.
+Styles include `.rt-row-add`, `.rt-row-remove`, and `.rt-row-action-cell`.
+
+## 12. Shiny modules
+
+Use `ns()` in the UI, but use **local** IDs with the module session on the server.
+
+```{r, purl=FALSE}
+carsUI <- function(id) {
+  ns <- NS(id)
+  tagList(
+    actionButton(ns("price25"), "Price = 25"),
+    reactableOutput(ns("cars"))
+  )
+}
+
+carsServer <- function(id, data, columns) {
+  moduleServer(id, function(input, output, session) {
+    output$cars <- renderReactable(reactable(data, rowId = "id", columns = columns))
+    observeEvent(input$price25, {
+      updateNumericInput(session, "cars_car1_Price", value = 25)
+      updateReactableTooltip(session, "cars_car1_Price", "Module tooltip")
+    })
+    observeEvent(getReactableEdit("cars", session), {
+      edit <- getReactableEdit("cars", session)
+      # Validate and save as in the complete example.
+      # Then: resolveReactableEdit("cars", edit, session = session)
+    }, ignoreInit = TRUE)
+  })
+}
+```
+
+For the `"demo"` module, the automatic DOM ID becomes `demo-cars_car1_Price`.
+Within the module, read `input$cars_car1_Price` and pass `"cars_car1_Price"` to updaters.
+For a custom ID `"main_price"`, the DOM uses `demo-main_price`, while the local server uses
+`input$main_price`. The same principle applies to a custom prefix and `addReactableRow(inputIds = ...)`.
+
+The module snippet illustrates namespacing; it is not a complete saving server.
+Do not use the already namespaced DOM ID with `session$sendInputMessage()` from that same session.
+
+## 13. `updateReactable()` and persistence
+
+```r
+updateReactable(
+  outputId, data = NULL, sortBy = NULL, page = NULL, expanded = NULL,
+  selected = NULL, meta = NULL, session = NULL,
+  disabledInputs = NULL, rowActions = NULL, tooltips = NULL
+)
+```
+
+| Operation | Effect |
+|:--|:--|
+| Sorting, filtering, pagination, virtualization | Keys preserve drafts, errors, and dedicated overrides |
+| `resolveReactableEdit()` | Resolves only the corresponding submission |
+| Native updater on a mounted cell | Native value/options; does not replace R definitions |
+| `disabledInputs = list` | Replaces these rules and clears disabled ID overrides |
+| `tooltips = list` | Replaces these rules and clears tooltip ID overrides |
+| `rowActions = list` | Replaces the control options |
+| `data = newData` | Replaces data and cancels edits, drafts, and add requests |
+
+Replacing only the data preserves disabling and tooltip rules and overrides.
+Column rules built in R are not recalculated by this message.
+Page, selection, and expansion reset by default when data is replaced; sorting, filters, and grouping persist.
+To explicitly preserve the page or selection, use the corresponding parameters and check that their indices remain
+valid in the new data.
+
+`getReactableState("cars", "selected")` returns **R indices**, not `rowId` keys.
+These positions can change after a deletion. To save an edit or delete a record, use the event key, never a
+displayed position.
+
+## 14. Complete application: saving, observers, and updates
+
+Copy this block into an R session with `shiny`, `MASS`, and `reactableEdit` available.
+It covers the six inputs, IDs, business-rule validation, an individual observer, updaters, disabling, tooltips, and
+row actions. Saving uses a session-specific `reactiveVal()`; it **does not persist to disk**.
+Authorization rules here are limited to protecting `"car1"`.
+
+```{r app-complete, purl=TRUE}
+library(shiny)
+library(reactableEdit)
+
+makeEditingGuideApp <- function() {
+  cars <- MASS::Cars93[1:6, c("Manufacturer", "Model", "Type", "Price")]
+  cars$id <- paste0("car", seq_len(nrow(cars)))
+  cars$Manufacturer <- as.character(cars$Manufacturer)
+  cars$Model <- as.character(cars$Model)
+  cars$Type <- as.character(cars$Type)
+  cars$Available <- TRUE
+  cars$CheckedOn <- as.Date("2026-01-01")
+  cars$Notes <- ""
+  choices <- unique(cars$Type)
+
+  columns <- list(
+    id = colDef(show = FALSE),
+    Model = colDef(tooltip = function(value) paste("Model:", value)),
+    Manufacturer = colDef(editable = TRUE),
+    Price = colDef(
+      editable = TRUE, editor = "number", editorOptions = list(step = "any"),
+      tooltip = "The server requires a positive price.", headerTooltip = "Price in thousands"
+    ),
+    Type = colDef(editable = TRUE, editor = "select", editorOptions = list(choices = choices)),
+    Available = colDef(editable = TRUE, editor = "checkbox"),
+    CheckedOn = colDef(editable = TRUE, editor = "date"),
+    Notes = colDef(editable = TRUE, editor = "textarea", editorOptions = list(rows = 2))
+  )
+
+  ui <- fluidPage(
+    h2("reactableEdit: editing and the server"),
+    actionButton("price25", "First price = 25"),
+    actionButton("disable_price", "Disable the first price"),
+    actionButton("enable_price", "Re-enable the first price"),
+    actionButton("change_tooltip", "Change the first cell's tooltip"),
+    actionButton("integrate_additions", "Integrate additions"),
+    p("ID-based commands assume car1 is visible. car1 is protected from deletion."),
+    reactableOutput("cars"),
+    h3("Latest individual input"),
+    verbatimTextOutput("individual"),
+    h3("Latest submission"),
+    verbatimTextOutput("edit"),
+    h3("Confirmed server data"),
+    tableOutput("saved")
+  )
+
+  server <- function(input, output, session) {
+    saved <- reactiveVal(cars)
+    lastEdit <- reactiveVal(NULL)
+    nextKey <- nrow(cars)
+    tbl <- reactable(
+      cars, rowId = "id", columns = columns,
+      rowActions = list(add = TRUE, remove = TRUE, removeDisabled = "car1"),
+      defaultPageSize = 4, searchable = TRUE,
+      language = reactableLang(
+        editPending = "Checking...", editSaved = "Saved",
+        rowAdd = "Add", rowRemoveConfirm = "Remove row {rowId}?"
+      )
+    )
+    output$cars <- renderReactable(tbl)
+    output$saved <- renderTable(saved())
+    output$edit <- renderPrint(lastEdit())
+    individual <- reactiveVal(NULL)
+    output$individual <- renderPrint(individual())
+
+    observeEvent(input$cars_car1_Price, {
+      individual(input$cars_car1_Price)
+    }, ignoreInit = TRUE)
+
+    observeEvent(getReactableEdit("cars"), {
+      edit <- getReactableEdit("cars")
+      lastEdit(edit)
+      current <- saved()
+      index <- match(edit$rowId, current$id)
+      allowed <- c("Manufacturer", "Price", "Type", "Available", "CheckedOn", "Notes")
+      reject <- function(message) resolveReactableEdit("cars", edit, error = message)
+      scalar <- function(x) length(x) == 1 && !anyNA(x)
+      if (is.na(index) || !edit$columnId %in% allowed) {
+        reject("Unauthorized row or column.")
+        return()
+      }
+      value <- edit$value
+      valid <- switch(edit$columnId,
+        Manufacturer = is.character(value) && scalar(value) && nzchar(trimws(value)),
+        Price = is.numeric(value) && scalar(value) && is.finite(value) && value >= 0,
+        Type = is.character(value) && scalar(value) && value %in% choices,
+        Available = is.logical(value) && scalar(value),
+        CheckedOn = is.character(value) && scalar(value) &&
+          grepl("^\\d{4}-\\d{2}-\\d{2}$", value),
+        Notes = is.character(value) && scalar(value),
+        FALSE
+      )
+      if (!valid) {
+        reject("Invalid value: check the type and business rules.")
+        return()
+      }
+      if (edit$columnId == "Manufacturer") value <- trimws(value)
+      if (edit$columnId == "Price") value <- round(value, 2)
+      if (edit$columnId == "CheckedOn") {
+        value <- tryCatch(as.Date(value), error = function(e) as.Date(NA))
+        if (is.na(value) || as.character(value) != edit$value) {
+          reject("Invalid date.")
+          return()
+        }
+      }
+      current[[edit$columnId]][index] <- value
+      saved(current)
+      resolveReactableEdit("cars", edit, value = value)
+    }, ignoreInit = TRUE)
+
+    observeEvent(input$price25, {
+      current <- saved()
+      current$Price[current$id == "car1"] <- 25
+      saved(current)
+      updateNumericInput(session, "cars_car1_Price", value = 25)
+    })
+    observeEvent(input$disable_price, {
+      updateReactableInput(session, "cars_car1_Price", disabled = TRUE)
+    })
+    observeEvent(input$enable_price, {
+      updateReactableInput(session, "cars_car1_Price", disabled = FALSE)
+    })
+    observeEvent(input$change_tooltip, {
+      updateReactable("cars", tooltips = list(
+        cells = list(car1 = list(Price = reactableTooltip(tags$b("Updated tooltip"))))
+      ))
+    })
+    observeEvent(input$integrate_additions, {
+      updateReactable("cars", data = saved())
+    })
+
+    observeEvent(getReactableRowAction("cars"), {
+      action <- getReactableRowAction("cars")
+      current <- saved()
+      if (identical(action$action, "add")) {
+        nextKey <<- nextKey + 1L
+        row <- cars[1, , drop = FALSE]
+        row$id <- paste0("car", nextKey)
+        row$Manufacturer <- "New"
+        row$Model <- "New model"
+        row$Price <- 0
+        row$Available <- FALSE
+        row$Notes <- ""
+        saved(rbind(current, row))
+        addReactableRow("cars", row, requestId = action$requestId)
+      } else if (identical(action$action, "remove")) {
+        if (identical(action$rowId, "car1") || !action$rowId %in% current$id) {
+          showNotification("Unauthorized deletion.", type = "error")
+          updateReactable("cars", data = current)
+          return()
+        }
+        saved(current[current$id != action$rowId, , drop = FALSE])
+      } else {
+        showNotification("Unknown row action.", type = "error")
+      }
+    }, ignoreInit = TRUE)
+  }
+  shinyApp(ui, server)
+}
+
+app <- makeEditingGuideApp()
+if (interactive()) runApp(app)
+```
+
+Suggested tests:
+
+1. Enter a negative price: a server error appears, with no change to the confirmed data.
+2. Enter `25.678`: the value is normalized to `25.68` and accepted, then the checkmark appears.
+3. Enter a manufacturer name surrounded by spaces: the trimmed text is saved.
+4. Click "First price = 25": the native input updates without a new global submission.
+5. Disable and re-enable the visible price; check the tooltip using the keyboard.
+6. Add a row: it remains at the bottom, even while searching.
+7. Click "Integrate additions": the row joins the regular sorting and pagination.
+8. Delete another row; check the saved data.
+
+To also test namespacing and virtualization with the repository demo:
+
+```{r, purl=FALSE}
+source("@travail/app.R")
+runEditingDemo(virtual = TRUE, module = TRUE)
+```
+
+### Render the guide and extract the application
+
+From the repository root, use RStudio's Knit button or run:
+
+```{r, purl=FALSE}
+rmarkdown::render("vignettes/edition.Rmd", output_dir = "@travail")
+knitr::purl("vignettes/edition.Rmd", output = "@travail/edition-app.R", quiet = TRUE)
+source("@travail/edition-app.R")
+```
+
+The HTML is readable documentation, not a standalone Shiny application.
+`purl()` extraction retains only the complete application, not the separate illustrative snippets.
+Rendering HTML requires rmarkdown and Pandoc; RStudio generally provides the latter.
+
+## 15. Limitations and troubleshooting
+
+- Native editing and row actions require Shiny, use client-side processing, and do not support `server = TRUE` or
+  `.subRows`.
+- Row actions do not support Crosstalk data. Ordinary tooltips can also be used in an HTML document without a
+  server, but server callbacks and updates are unavailable there.
+- Native commands, ID-based disabling, and ID-based tooltips work only for mounted inputs.
+- Built-in saving, authentication, and multi-user conflict management are not provided.
+- There is no public API for partially updating off-page cell values; replace the data if needed.
+- Your application is not automatically guaranteed to meet WCAG requirements: check focus, contrast, zoom, screen
+  readers, and touch interactions with your customizations.
+
+| Symptom | Check |
+|:--|:--|
+| The cell remains pending | Every validated edit waits for `resolveReactableEdit()` |
+| The updater has no effect | Check the ID, namespace, updater type, and whether the cell is mounted |
+| Drafts disappear | Look for a reactive rebuild or `updateReactable(data = ...)` |
+| Multiple inputs have the same ID | Check keys, prefixes, and constant callbacks |
+| An old tooltip does not change after editing | R tooltip callbacks are precalculated; send rules instead |
+| A tooltip remains hidden | Check for an ID override or a higher-priority `FALSE` rule |
+| An input remains disabled after `list()` | Check the `colDef(inputDisabled = TRUE)` default |
+| The tooltip color does not change | The popup is under `body`, not inside the table ancestor |
+| A date has an unexpected type | Native input: `Date`; global event: ISO string |
+| Added rows are not sorted | Integrate them with `updateReactable(data = ...)` |
+
+In R, also see `?reactableEdit::colDef`, `?reactableEdit::getReactableEdit`,
+`?reactableEdit::updateReactableInput`, `?reactableEdit::reactableTooltip`, and `?reactableEdit::addReactableRow`.

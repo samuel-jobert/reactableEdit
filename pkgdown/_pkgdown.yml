@@ -13,6 +13,8 @@ navbar:
     articles:
       text: Articles
       menu:
+      - text: "Editing and Shiny Inputs"
+        href: articles/edition.html
       - text: Custom Rendering
         href: articles/custom-rendering.html
       - text: Conditional Styling
@@ -77,6 +79,16 @@ reference:
   - reactable-shiny
   - updateReactable
   - getReactableState
+- title: Native cell editing
+  contents:
+  - reactable-editing
+  - updateReactableInput
+- title: Row actions
+  contents:
+  - reactable-row-actions
+- title: Rich tooltips
+  contents:
+  - reactable-tooltips
 - title: Custom server data backends
   contents:
   - reactable-server

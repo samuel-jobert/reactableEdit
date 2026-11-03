@@ -30,7 +30,8 @@ Interactive data tables for R, based on the
 ## Upstream demos
 
 The following links demonstrate the original package's shared features, not this fork's extensions.
-For editing and tooltip examples, see [the local guide](@travail/README.md) and
+For complete editing API documentation and a runnable Shiny application, see
+[the editing guide](vignettes/edition.Rmd). For local development, see [the local guide](@travail/README.md) and
 [the Shiny demo source](design/cell-editing/cell-editing-test.Rmd).
 - [Twitter Followers](https://glin.github.io/reactable/articles/twitter-followers/twitter-followers.html)
 - [Women's World Cup Predictions](https://glin.github.io/reactable/articles/womens-world-cup/womens-world-cup.html)

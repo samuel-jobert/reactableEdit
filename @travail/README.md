@@ -9,7 +9,14 @@ Fork independant de [reactable](https://github.com/glin/reactable), cree par Gre
 Les credits et la licence MIT d'origine sont conserves ; voir [LICENSE.note](../LICENSE.note).
 Depot du fork : <https://github.com/samuel-jobert/reactableEdit>.
 
-## Objectif
+## Documentation complete
+
+[The editing and Shiny inputs guide](../vignettes/edition.Rmd) documents each API,
+les IDs automatiques/personnalises, les namespaces, `observeEvent`, tous les `update*Input`, la validation,
+les regles disabled, les tooltips et les actions de lignes. Il contient une application complete avec sauvegarde reactive.
+Le present fichier reste un aide-memoire et un point d'entree vers la demonstration.
+
+## Objectif de l'extension
 
 Integrer de vrais champs Shiny dans les cellules de reactable, avec des identifiants individuels,
 des observateurs serveur et une validation explicite de chaque modification.

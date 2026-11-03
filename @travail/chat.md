@@ -453,3 +453,20 @@ Le changement de chemin de ressources a revele deux acces a window incompatibles
 ils sont maintenant proteges par le helper isBrowser() existant et un test SSR.
 923 assertions R et 81 tests JS reussis ; bundles reconstruits, lint et formatage passes.
 Le repertoire n'a pas ete renomme ; aucun commit ni publication distante effectue.
+
+## 14. Documentation complete de l'edition
+
+Demande utilisateur :
+
+> J'aimerais une documentation spécifique plus complète sur toutes les fonctionnalités que nous avons développées autour
+> de l'édition, des explications de chaque fonction, des id par input, des update* côté serveur, des observeEvent des inputs,
+> des tooltips, etc.
+
+Le guide dedie est dans `vignettes/edition.Rmd`, avec une application Shiny complete.
+Il distingue inputs natifs, brouillons et donnees sauvegardees, explique les IDs et modules, les mises a jour
+sur cellules montees ou hors page, les priorites disabled/tooltips et les demandes d'ajout/suppression.
+Les liens du guide local, README et site pkgdown pointent vers cette source unique pour eviter deux guides divergents.
+
+Validation : application extraite et serveur teste avec shiny::testServer pour acceptation, refus,
+normalisation, dates, types, cles/colonnes non autorisees, mises a jour et ajout/suppression protegee.
+Guide HTML rendu avec le Pandoc existant de RStudio. Les lignes de prose respectent 120 caracteres.

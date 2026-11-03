@@ -27,6 +27,9 @@ This independent fork is named **reactableEdit**. Load it with `library(reactabl
 HTML document. See the [fork repository](https://github.com/samuel-jobert/reactableEdit) for the extensions;
 the original [reactable project](https://github.com/glin/reactable) remains credited under its MIT license.
 
+For detailed editing documentation, input IDs, native Shiny observers and updaters, server validation, disabled inputs,
+row actions, tooltips, and a complete application, see the [editing guide](edition.html).
+
 To create a data table, use `reactable()` on a data frame or matrix.
 The table will be sortable and paginated by default:
 ```{r}
