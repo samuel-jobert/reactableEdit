@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="420" viewBox="0 0 360 420" role="img" aria-labelledby="title description">
+  <title id="title">reactable edit</title>
+  <desc id="description">Hexagonal badge with reactable above a table cell containing edit and an editing cursor.</desc>
+  <path d="M180 9 349 107v206L180 411 11 313V107Z" fill="#18313c" stroke="#18313c" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M180 20 338 112v196l-158 92L22 308V112Z" fill="none" stroke="#73c7b1" stroke-width="3" stroke-linejoin="round"/>
+
+  <g fill="none" stroke="#73c7b1" stroke-width="3" stroke-linecap="round">
+    <path d="M116 80h128v59H116zM116 99h128M158 99v40M201 99v40"/>
+  </g>
+  <path d="M116 80h128v19H116z" fill="#73c7b1"/>
+
+  <rect x="52" y="209" width="256" height="104" fill="#25434c" stroke="#73c7b1" stroke-width="3"/>
+  <g fill="#f7faf9" font-family="Trebuchet MS, DejaVu Sans, sans-serif" font-weight="700">
+    <text x="180" y="198" font-size="49" text-anchor="middle">reactable</text>
+    <text x="178" y="288" font-size="80" text-anchor="end">ed</text>
+    <text x="194" y="288" font-size="80">it</text>
+  </g>
+  <path d="M178 220h16m-8 0v77m-8 0h16" fill="none" stroke="#ffb36b" stroke-width="5" stroke-linecap="round"/>
+</svg>

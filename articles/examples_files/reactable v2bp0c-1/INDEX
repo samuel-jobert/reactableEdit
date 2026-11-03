@@ -1,0 +1,17 @@
+colDef                  Column definitions
+colFormat               Column formatting options
+colGroup                Column group definitions
+getReactableState       Get the state of a reactable instance
+reactable               Create an interactive data table
+reactable-editing       Get and resolve cell edits in Shiny
+reactable-row-actions   Add and remove rows in Shiny
+reactable-server        Create custom server-side data backends for
+                        Shiny
+reactable-shiny         Shiny bindings for reactable
+reactable-tooltips      Rich, accessible cell tooltips
+reactableLang           Language options
+reactableTheme          Theme options
+resolvedData            The result from handling a server-side data
+                        request
+updateReactable         Update a reactable instance
+updateReactableInput    Disable or enable a mounted reactable input
